@@ -1,0 +1,54 @@
+name: "tests"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - stable
+
+  push:
+    branches:
+      - main
+    tags:
+      - "v*"
+  schedule:
+    - cron: "45 6 * * *"
+
+defaults:
+  run:
+    shell: bash -l {0}
+
+jobs:
+  test_suite:
+    runs-on: ubuntu-latest
+    name: "Test suite"
+    strategy:
+      matrix:
+        CONDA_PY:
+          - "3.10"
+          - "3.9"
+          - "3.8"
+          - "3.7"
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v2
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          python-version: ${{ matrix.CONDA_PY }}
+      - name: "Install"
+        run: |
+          python -m pip install -e ".[test]"
+      - name: "Versions"
+        run: conda list
+      - name: "Tests"
+        env:
+          PY_COLORS: "1"
+        run: |
+          python -c "import ghcontribs"
+          py.test -vv --cov --cov-report xml:cov.xml
+      - uses: codecov/codecov-action@v2
+        with:
+          files: ./cov.xml
