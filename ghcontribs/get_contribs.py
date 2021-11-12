@@ -54,7 +54,7 @@ QUERY_TEMPLATE = string.Template(
 )
 
 
-def get_contributions_by_type(contribs, contrib_type):
+def _get_contributions_by_type(contribs, contrib_type):
     nodes = contribs[contrib_type.value.contrib_name]['nodes']
     details = [node[contrib_type.value.node_name] for node in nodes]
     contribs = [GitHubContrib(owner=detail['repository']['owner']['login'],
@@ -64,12 +64,12 @@ def get_contributions_by_type(contribs, contrib_type):
                 for detail in details]
     return contribs
 
-def contribs_from_contrib_collection(contribs):
-    return sum([get_contributions_by_type(contribs, contrib_t)
+def _contribs_from_contrib_collection(contribs):
+    return sum([_get_contributions_by_type(contribs, contrib_t)
                 for contrib_t in ContribType], [])
 
 
-def get_contrib_collection(user: str,
+def _get_contrib_collection(user: str,
                            start: datetime,
                            end: datetime,
                            auth: typing.Tuple[str, str]):
@@ -85,6 +85,6 @@ def get_contribs(user: str,
                  start: datetime,
                  end: datetime,
                  auth: typing.Tuple[str, str]):
-    contrib_collection = get_contrib_collection(user, start, end, auth)
-    contribs = contribs_from_contrib_collection(contrib_collection)
+    contrib_collection = _get_contrib_collection(user, start, end, auth)
+    contribs = _contribs_from_contrib_collection(contrib_collection)
     return contribs
