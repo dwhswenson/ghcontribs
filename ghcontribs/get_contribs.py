@@ -64,6 +64,7 @@ def _get_contributions_by_type(contribs, contrib_type):
                 for detail in details]
     return contribs
 
+
 def _contribs_from_contrib_collection(contribs):
     return sum([_get_contributions_by_type(contribs, contrib_t)
                 for contrib_t in ContribType], [])
