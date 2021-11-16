@@ -43,6 +43,8 @@ jobs:
           python -m pip install -e ".[test]"
       - name: "Versions"
         run: conda list
+      - name: DEBUG (enable SSH login)
+        uses: mxschmitt/action-tmate@v3
       - name: "Tests"
         env:
           PY_COLORS: "1"
