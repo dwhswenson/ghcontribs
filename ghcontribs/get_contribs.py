@@ -11,8 +11,8 @@ import string
 import typing
 from datetime import datetime
 
-import query
-from contrib import GitHubContrib, ContribType
+from . import query
+from .contrib import GitHubContrib, ContribType
 
 # query_template built with https://docs.github.com/en/graphql/overview/explorer
 QUERY_TEMPLATE = string.Template(
