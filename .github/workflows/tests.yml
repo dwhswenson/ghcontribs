@@ -48,8 +48,8 @@ jobs:
       - name: "Tests"
         env:
           PY_COLORS: "1"
-          GHCONTRIBS_USER: {{ secrets.GHCONTRIBS_USER }}
-          GHCONTRIBS_TOKEN: {{ secrets.GHCONTRIBS_TOKEN }}
+          GHCONTRIBS_USER: ${{ secrets.GHCONTRIBS_USER }}
+          GHCONTRIBS_TOKEN: ${{ secrets.GHCONTRIBS_TOKEN }}
         run: |
           python -c "import ghcontribs"
           py.test -vv --cov --cov-report xml:cov.xml
