@@ -43,11 +43,13 @@ jobs:
           python -m pip install -e ".[test]"
       - name: "Versions"
         run: conda list
-      - name: DEBUG (enable SSH login)
-        uses: mxschmitt/action-tmate@v3
+      #- name: DEBUG (enable SSH login)
+        #uses: mxschmitt/action-tmate@v3
       - name: "Tests"
         env:
           PY_COLORS: "1"
+          GHCONTRIBS_USER: {{ secrets.GHCONTRIBS_USER }}
+          GHCONTRIBS_TOKEN: {{ secrets.GHCONTRIBS_TOKEN }}
         run: |
           python -c "import ghcontribs"
           py.test -vv --cov --cov-report xml:cov.xml
