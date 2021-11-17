@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 
 from ghcontribs import query
 from ghcontribs import get_contribs
+from ghcontribs import json_utils
 
 
 def first_next_month(date: datetime) -> datetime:
