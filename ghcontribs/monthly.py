@@ -3,8 +3,9 @@ import string
 import typing
 from datetime import datetime, timezone
 
-import query
-import get_contribs
+from ghcontribs import query
+from ghcontribs import get_contribs
+
 
 def first_next_month(date: datetime) -> datetime:
     """Return the first of the next month after the input date"""
@@ -28,6 +29,7 @@ USER_YEARS_TEMPLATE = string.Template(
 }
 """
 )
+
 
 def get_user_years(user: str, auth: query.AUTH_TYPE,
                    api_endpoint=query.GH_API_ENDPOINT) -> typing.List[int]:

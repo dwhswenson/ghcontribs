@@ -1,5 +1,6 @@
 import pytest
 import os
+from unittest.mock import Mock
 
 @pytest.fixture
 def authorization():
@@ -14,3 +15,47 @@ def authorization():
         pytest.skip("Missing authorization to run this test")
     return user, token
 
+_FULL_RESPONSE = {
+  "data": {
+    "user": {
+      "contributionsCollection": {
+        "issueContributions": {
+          "nodes": [ {
+              "issue": {
+                "number": 1000,
+                "repository": {
+                  "name": "openpathsampling",
+                  "owner": {
+                    "login": "openpathsampling"
+                  }
+                }
+              }
+            },
+          ]
+        },
+        "pullRequestContributions": {
+          "nodes": [
+            {
+              "pullRequest": {
+                "number": 1001,
+                "repository": {
+                  "name": "openpathsampling",
+                  "owner": {
+                    "login": "openpathsampling"
+                  }
+                }
+              }
+            },
+          ]
+        }
+      }
+    }
+  }
+}
+
+
+@pytest.fixture
+def mock_query():
+    mock_json = Mock(return_value=_FULL_RESPONSE)
+    mock_query = Mock(return_value=Mock(json=mock_json))
+    return mock_query
