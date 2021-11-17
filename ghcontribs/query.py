@@ -23,6 +23,6 @@ def get_user_contribs(user: str,
         end = end.isoformat()
     query_str = query_template.substitute(USER=user,
                                           START=start,
-                                         END=end)
+                                          END=end)
     result = query(query_str, auth, api_endpoint)
     return result.json()['data']['user']['contributionsCollection']

@@ -37,7 +37,7 @@ class _ContribTypeInfo(typing.NamedTuple):
 class ContribType(enum.Enum):
     PULL = _ContribTypeInfo(
         name="pull",
-        url_name="pulls",
+        url_name="pull",
         node_name="pullRequest",
         contrib_name="pullRequestContributions",
         by_repo_name="pullRequestContributionsByRepository",
@@ -87,4 +87,3 @@ class GitHubContrib:
         dct = dict(dct)  # make a copy before modification
         dct['contrib_type'] = ContribType.deserialize(dct['contrib_type'])
         return cls(**dct)
-
