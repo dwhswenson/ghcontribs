@@ -38,3 +38,21 @@ def test_json_file_cycle(tmpdir, contrib):
     assert filename.exists()
     results = load_json_file(filename)
     _assert_data(results, contrib)
+
+
+def test_json_file_cycle_single(tmpdir, contrib):
+    # this checks that if we try to save only one contrib outside a list, it
+    # gets turned into a list (this behavior may be removed)
+    filename = tmpdir / "tmp.json"
+    assert not filename.exists()
+    write_json_file(filename, contrib)
+    assert filename.exists()
+    results = load_json_file(filename)
+    assert results == [contrib]
+
+
+def test_assert_json_serialization_error(contrib):
+    # this gets coverage of the call to super().default(obj) in the encoder
+    bad_list = [contrib, object()]
+    with pytest.raises(TypeError):
+        _ = json.dumps(bad_list, cls=_GitHubContribJSONEncoder)
