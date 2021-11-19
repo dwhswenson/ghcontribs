@@ -6,10 +6,12 @@ from datetime import datetime, timezone
 from ghcontribs import query
 from ghcontribs import get_contribs
 from ghcontribs import json_utils
+from ghcontribs import GitHubContrib
 
 
 def first_next_month(date: datetime) -> datetime:
-    """Return the first of the next month after the input date"""
+    """Return the first of the next month after the input date
+    """
     if date.month == 12:
         year = date.year + 1
         month = 1
@@ -40,8 +42,30 @@ def get_user_years(user: str, auth: query.AUTH_TYPE,
     return contribs['contributionYears']
 
 
-def get_monthly_contribs(user: str, year: int, month: int, auth:
-                         query.AUTH_TYPE):
+def get_monthly_contribs(
+    user: str,
+    year: int,
+    month: int,
+    auth: query.AUTH_TYPE
+) -> typing.List[GitHubContrib]:
+    """Get a user's contributions for a given month.
+
+    Parameters
+    ----------
+    user :
+        username to get contributions for
+    year :
+        year of the contributions
+    month :
+        month for which to get contributions (January=1, December=12)
+    auth :
+        authorization information for GitHub API
+
+    Returns
+    -------
+    :
+        list of user's contributions for that time period
+    """
     start = datetime(year, month, 1, tzinfo=timezone.utc)
     end = first_next_month(start)
     contribs = get_contribs.get_contribs(user, start, end, auth)
@@ -54,7 +78,23 @@ def _month_year_generator(years: typing.List[int]):
             yield (month, year)
 
 
-def write_all_contrib_files(directory, user: str, auth: query.AUTH_TYPE):
+def write_all_contrib_files(directory: str, user: str,
+                            auth: query.AUTH_TYPE):
+    """Write monthly contribution files for all user activity.
+
+    Thi writes out JSON files of contributions for the given user, using one
+    file per month that the user was active. Filenames will be of the format
+    YYYY-MM.json.
+
+    Parameters
+    ----------
+    directory :
+        directory in which to write the files
+    user :
+        username for the contributions
+    auth :
+        authorization information for GitHub API
+    """
     directory = pathlib.Path(directory)
     user_years = get_user_years(user, auth)
     for month, year in _month_year_generator(user_years):

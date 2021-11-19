@@ -8,8 +8,24 @@ import requests
 
 GH_API_ENDPOINT = "https://api.github.com/graphql"
 
+
+class Authorization(typing.NamedTuple):
+    """Container for the username and token used for GitHub authentication.
+
+    Attributes
+    ----------
+    username :
+        GitHub username to use in authorization
+    token :
+        GitHub personal access token to use in authorization
+    """
+    username: str
+    token: str
+
+
 def query(query: str, auth: AUTH_TYPE, api_endpoint=GH_API_ENDPOINT):
     return requests.post(api_endpoint, json={'query': query}, auth=auth)
+
 
 def get_user_contribs(user: str,
                       start: datetime,

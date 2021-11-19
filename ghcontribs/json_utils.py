@@ -2,6 +2,8 @@ import json
 import typing
 from ghcontribs.contrib import GitHubContrib
 
+FILELIKE_OR_FILENAME = typing.Union[typing.TextIO, str]
+
 
 class _GitHubContribJSONEncoder(json.JSONEncoder):
     """Custom encoder for GitHubContrib objects"""
@@ -30,8 +32,15 @@ def _write_json(filelike, contrib_list):
     filelike.write(json_str)
 
 
-def write_json_file(filename, contrib_list):
-    """Output the contribution list to a JSON file."""
+def write_json_file(filename: str, contrib_list):
+    # TODO: typing on contrib_list -- maybe don't regularize to list
+    """Output the contribution list to a JSON file.
+
+    Parameters
+    ----------
+    filename :
+        the name of the file to write to
+    """
     # regularize to list in case client didn't
     if isinstance(contrib_list, GitHubContrib):
         contrib_list = [contrib_list]
@@ -41,9 +50,19 @@ def write_json_file(filename, contrib_list):
         _write_json(f, contrib_list)
 
 
-def load_json_file(filename):
-    """Load a contribution list from a JSON file"""
+def load_json_file(filename: str) -> typing.Any:
+    """Load a contribution list from a JSON file
+
+    Parameters
+    ----------
+    filename :
+        the name of the JSON file to load
+
+    Returns
+    -------
+    Any :
+        representation of the JSON file
+    """
     with open(filename, mode='r') as f:
         contribs = json.loads(f.read(), cls=_GitHubContribJSONDecoder)
     return contribs
-
