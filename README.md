@@ -1,4 +1,8 @@
-# gh-contribs
+[![tests](https://github.com/dwhswenson/ghcontribs/actions/workflows/tests.yml/badge.svg)](https://github.com/dwhswenson/ghcontribs/actions/workflows/tests.yml)
+[![Documentation Status](https://readthedocs.org/projects/ghcontribs/badge/?version=latest)](https://ghcontribs.readthedocs.io/en/latest/?badge=latest)
+[![codecov](https://codecov.io/gh/dwhswenson/ghcontribs/branch/main/graph/badge.svg?token=NIDVFDmwvI)](https://codecov.io/gh/dwhswenson/ghcontribs)
+
+# ghcontribs
 
 Generate information about all GitHub contributions for a give user.
 
@@ -17,6 +21,4 @@ allows you to store all your contributions in a JSON file, and reload them to
 generate whatever output you would like.
 
 The tools I found with similar goals didn't seem to have been updated in a long
-time. In particular, theres:
-
-* ???
+time.
