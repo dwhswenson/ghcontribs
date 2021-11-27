@@ -6,7 +6,7 @@ from unittest.mock import Mock
 def authorization():
     try:
         from .authorization import TOKEN, USER
-    except ImportError:
+    except ImportError:  # -no-cov-
         TOKEN = None
         USER = None
     token = os.environ.get("GHCONTRIBS_TOKEN", TOKEN)

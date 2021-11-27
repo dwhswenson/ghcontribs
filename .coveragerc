@@ -2,6 +2,7 @@
 omit =
     */ghcontribs/_installed_version.py
     */ghcontribs/version.py
+    */ghcontribs/_version.py
 exclude_lines =
     -no-cov-
     def __repr__
