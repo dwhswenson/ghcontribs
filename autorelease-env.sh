@@ -1,1 +1,1 @@
-PACKAGE_IMPORT_NAME="ghcontribs"
+PACKAGE_IMPORT_NAME=ghcontribs
