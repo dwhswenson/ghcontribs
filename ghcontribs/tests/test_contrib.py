@@ -18,7 +18,7 @@ class TestContribType:
 
 
 class TestGitHubContrib:
-    def setup(self):
+    def setup_method(self):
         self.contribs = {
             'pull': GitHubContrib(
                 owner='openpathsampling',
