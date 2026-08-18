@@ -38,6 +38,19 @@ def test_query(authorization):
     assert json_results == EXPECTED
 
 
+def test_query_uses_bearer_authentication():
+    auth = ("auth_user", "auth_token")
+
+    with patch('ghcontribs.query.requests.post') as mock_post:
+        query(QUERY_EXAMPLE, auth=auth)
+
+    mock_post.assert_called_once_with(
+        GH_API_ENDPOINT,
+        json={'query': QUERY_EXAMPLE},
+        headers={'Authorization': 'Bearer auth_token'},
+    )
+
+
 def test_get_user_contributions():
     # this mocks out the actualQUERY_EXAMPLE use contribution and gives us
     # something reasonable for the results
@@ -57,11 +70,9 @@ def test_get_user_contributions():
     assert contribs == {'hasActivityInThePast': True,
                         'hasAnyContributions': True}
     expected_query = ('username=some_user\n'
-                      'start="2021-01-01T00:00:00Z"\n'
-                      'end="2021-01-02T00:00:00Z"\n')
-    assert mock_query.called_once_with([
-        expected_query, auth, GH_API_ENDPOINT
-    ])
+                      'start=2021-01-01T00:00:00+00:00\n'
+                      'end=2021-01-02T00:00:00+00:00\n')
+    mock_query.assert_called_once_with(expected_query, auth, GH_API_ENDPOINT)
 
 
 def test_get_user_contributions_integration(authorization):

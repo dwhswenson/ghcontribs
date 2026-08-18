@@ -24,7 +24,12 @@ class Authorization(typing.NamedTuple):
 
 
 def query(query: str, auth: AUTH_TYPE, api_endpoint=GH_API_ENDPOINT):
-    return requests.post(api_endpoint, json={'query': query}, auth=auth)
+    headers = {'Authorization': f'Bearer {auth[1]}'}
+    return requests.post(
+        api_endpoint,
+        json={'query': query},
+        headers=headers,
+    )
 
 
 def get_user_contribs(user: str,
