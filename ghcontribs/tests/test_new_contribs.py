@@ -87,7 +87,6 @@ def test_mixed_contributions_sort_chronologically():
         created=datetime(2024, 1, 3, tzinfo=UTC),
         url=f"{issue.url}#issuecomment-1",
         issue_or_pr=issue,
-        body="A comment",
     )
 
     assert sorted([issue, comment, pr, review]) == [pr, review, comment, issue]
@@ -124,7 +123,6 @@ def contribution_examples():
         created=datetime(2024, 1, 4, tzinfo=UTC),
         url=f"{pr.url}#issuecomment-1",
         issue_or_pr=pr,
-        body="A comment",
     )
     return issue, pr, review, comment
 
@@ -144,7 +142,7 @@ def test_serialization_includes_nested_subtype_data(contribution_examples):
     assert pr.to_dict()['closes'][0]['title'] == "An issue"
     assert review.to_dict()['pr']['merged'] is True
     assert comment.to_dict()['issue_or_pr']['contrib_type'] == "pullRequest"
-    assert comment.to_dict()['body'] == "A comment"
+    assert 'body' not in comment.to_dict()
 
 
 @pytest.mark.parametrize(
@@ -198,7 +196,6 @@ def test_deserialization_rejects_non_issue_comment_target():
         created=datetime(2024, 1, 3, tzinfo=UTC),
         url=f"{pr.url}#issuecomment-1",
         issue_or_pr=pr,
-        body="A comment",
     ).to_dict()
     serialized['issue_or_pr'] = Review(
         created=datetime(2024, 1, 2, tzinfo=UTC),
@@ -279,7 +276,6 @@ def test_issue_comment_from_query_node(issue_query_node):
     node = {
         'createdAt': '2024-01-04T12:00:00Z',
         'url': f"{issue_query_node['url']}#issuecomment-1",
-        'body': 'An issue comment',
         'issue': issue_query_node,
         'pullRequest': None,
     }
@@ -288,7 +284,7 @@ def test_issue_comment_from_query_node(issue_query_node):
 
     assert type(comment.issue_or_pr) is Issue
     assert comment.issue_or_pr == Issue.from_query_node(issue_query_node)
-    assert comment.body == 'An issue comment'
+    assert comment.url.endswith('#issuecomment-1')
 
 
 def test_pull_request_comment_from_query_node(
@@ -298,7 +294,6 @@ def test_pull_request_comment_from_query_node(
     node = {
         'createdAt': '2024-01-04T12:00:00Z',
         'url': f"{pr_query_node['url']}#issuecomment-1",
-        'body': 'A pull request comment',
         'issue': issue_query_node,
         'pullRequest': pr_query_node,
     }
@@ -307,7 +302,7 @@ def test_pull_request_comment_from_query_node(
 
     assert type(comment.issue_or_pr) is PullRequest
     assert comment.issue_or_pr == PullRequest.from_query_node(pr_query_node)
-    assert comment.body == 'A pull request comment'
+    assert comment.url.endswith('#issuecomment-1')
 
 
 def test_comment_query_requests_full_pull_request_data():
@@ -322,6 +317,7 @@ def test_comment_query_requests_full_pull_request_data():
     assert 'pullRequest {\n            ...PR_INFO\n          }' in query
     assert 'fragment PR_INFO on PullRequest' in query
     assert 'closingIssuesReferences(first: 100)' in query
+    assert 'body' not in query
 
 
 def test_query_node_missing_required_data_raises_key_error(issue_query_node):

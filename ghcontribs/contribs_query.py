@@ -69,7 +69,6 @@ COMMENT_TEMPLATE = """
 issueComments(last: 100) {
   edges {
     node {
-      body
       createdAt
       url
       issue {

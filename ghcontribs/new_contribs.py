@@ -188,7 +188,6 @@ class Review(Contribution):
 @dataclasses.dataclass(frozen=True)
 class Comment(Contribution):
     issue_or_pr: Issue | PullRequest
-    body: str
     contrib_type: ClassVar[str] = "issueComment"
 
     @property
@@ -201,10 +200,7 @@ class Comment(Contribution):
 
     def to_dict(self):
         dct = super().to_dict()
-        dct.update({
-            'issue_or_pr': self.issue_or_pr.to_dict(),
-            'body': self.body,
-        })
+        dct['issue_or_pr'] = self.issue_or_pr.to_dict()
         return dct
 
     @classmethod
@@ -213,10 +209,7 @@ class Comment(Contribution):
         issue_or_pr = Contribution.from_dict(dct['issue_or_pr'])
         if not isinstance(issue_or_pr, Issue):
             raise ValueError("A comment target must be an issue or pull request")
-        params.update({
-            'issue_or_pr': issue_or_pr,
-            'body': dct['body'],
-        })
+        params['issue_or_pr'] = issue_or_pr
         return params
 
     @classmethod
@@ -228,7 +221,6 @@ class Comment(Contribution):
         else:
             issue_or_pr = Issue.from_query_node(node['issue'])
         dct['issue_or_pr'] = issue_or_pr
-        dct['body'] = node['body']
         return dct
 
 
