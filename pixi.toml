@@ -1,0 +1,18 @@
+[workspace]
+authors = ["David W.H. Swenson <dwhs@hyperblazer.net>"]
+channels = ["conda-forge"]
+name = "ghcontribs"
+platforms = ["osx-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+python = ">=3.11"
+requests = "*"
+pytest = "*"
+pytest-cov = "*"
+jupyterlab = "*"
+
+[pypi-dependencies]
+ghcontribs = { path = ".", editable = true }
