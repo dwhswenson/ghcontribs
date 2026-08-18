@@ -3,7 +3,13 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from ghcontribs.new_contribs import Comment, Issue, PullRequest, Review
+from ghcontribs.new_contribs import (
+    Comment,
+    Contribution,
+    Issue,
+    PullRequest,
+    Review,
+)
 
 
 UTC = timezone.utc
@@ -102,3 +108,102 @@ def test_ordering_unrelated_objects_is_not_supported():
     assert issue.__lt__(object()) is NotImplemented
     with pytest.raises(TypeError):
         issue < object()
+
+
+@pytest.fixture
+def contribution_examples():
+    issue = make_issue()
+    pr = make_pr(closes=(issue,))
+    review = Review(
+        created=datetime(2024, 1, 3, tzinfo=UTC),
+        url=f"{pr.url}#pullrequestreview-1",
+        pr=pr,
+    )
+    comment = Comment(
+        created=datetime(2024, 1, 4, tzinfo=UTC),
+        url=f"{pr.url}#issuecomment-1",
+        issue_or_pr=pr,
+        body="A comment",
+    )
+    return issue, pr, review, comment
+
+
+def test_all_contribution_types_round_trip(contribution_examples):
+    for contribution in contribution_examples:
+        serialized = contribution.to_dict()
+        reloaded = Contribution.from_dict(serialized)
+
+        assert reloaded == contribution
+        assert type(reloaded) is type(contribution)
+
+
+def test_serialization_includes_nested_subtype_data(contribution_examples):
+    _, pr, review, comment = contribution_examples
+
+    assert pr.to_dict()['closes'][0]['title'] == "An issue"
+    assert review.to_dict()['pr']['merged'] is True
+    assert comment.to_dict()['issue_or_pr']['contrib_type'] == "pullRequest"
+    assert comment.to_dict()['body'] == "A comment"
+
+
+@pytest.mark.parametrize(
+    'created,expected',
+    [
+        ('2024-01-01T12:34:56Z', datetime(2024, 1, 1, 12, 34, 56, tzinfo=UTC)),
+        (
+            '2024-01-01T12:34:56.123456+00:00',
+            datetime(2024, 1, 1, 12, 34, 56, 123456, tzinfo=UTC),
+        ),
+        (
+            '2024-01-01T12:34:56+05:30',
+            datetime(
+                2024, 1, 1, 12, 34, 56,
+                tzinfo=timezone(timedelta(hours=5, minutes=30)),
+            ),
+        ),
+    ],
+)
+def test_deserialization_accepts_iso_8601_timestamps(created, expected):
+    serialized = make_issue().to_dict()
+    serialized['created'] = created
+
+    assert Issue.from_dict(serialized).created == expected
+
+
+def test_generic_deserialization_rejects_unknown_type():
+    serialized = make_issue().to_dict()
+    serialized['contrib_type'] = 'unknown'
+
+    with pytest.raises(ValueError, match="Unknown contribution type"):
+        Contribution.from_dict(serialized)
+
+
+def test_concrete_deserialization_rejects_mismatched_type():
+    with pytest.raises(ValueError, match="Cannot deserialize"):
+        Issue.from_dict(make_pr().to_dict())
+
+
+def test_deserialization_preserves_missing_field_errors():
+    serialized = make_issue().to_dict()
+    del serialized['title']
+
+    with pytest.raises(KeyError, match="title"):
+        Contribution.from_dict(serialized)
+
+
+def test_deserialization_rejects_non_issue_comment_target():
+    pr = make_pr()
+    serialized = Comment(
+        created=datetime(2024, 1, 3, tzinfo=UTC),
+        url=f"{pr.url}#issuecomment-1",
+        issue_or_pr=pr,
+        body="A comment",
+    ).to_dict()
+    serialized['issue_or_pr'] = Review(
+        created=datetime(2024, 1, 2, tzinfo=UTC),
+        url=f"{pr.url}#pullrequestreview-1",
+        pr=pr,
+    ).to_dict()
+
+    with pytest.raises(ValueError, match="target must be an issue"):
+        Comment.from_dict(serialized)

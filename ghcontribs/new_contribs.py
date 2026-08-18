@@ -4,7 +4,7 @@ from typing import ClassVar
 
 
 def parse_date(date):
-    return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S%z")
+    return datetime.fromisoformat(date)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -35,13 +35,16 @@ class Contribution:
         }
 
     @classmethod
-    def _prep_from_dict(cls, dct):
+    def _from_dict_params(cls, dct):
         if dct['contrib_type'] != cls.contrib_type:
-            raise RuntimeError()
+            raise ValueError(
+                f"Cannot deserialize {dct['contrib_type']!r} as "
+                f"{cls.contrib_type!r}"
+            )
 
         return {
             'url': dct['url'],
-            'created': parse_date(dct['createdAt']),
+            'created': parse_date(dct['created']),
         }
 
     @classmethod
@@ -58,8 +61,16 @@ class Contribution:
 
     @classmethod
     def from_dict(cls, dct):
-        input_dct = cls._prep_from_dict(dct)
-        return cls(**dct)
+        if cls is Contribution:
+            contrib_type = dct['contrib_type']
+            try:
+                contrib_cls = _CONTRIBUTION_TYPES[contrib_type]
+            except KeyError:
+                raise ValueError(
+                    f"Unknown contribution type: {contrib_type!r}"
+                ) from None
+            return contrib_cls.from_dict(dct)
+        return cls(**cls._from_dict_params(dct))
 
 
 @dataclasses.dataclass(frozen=True)
@@ -81,10 +92,15 @@ class Issue(Contribution):
         return dct
 
     @classmethod
-    def _prep_from_dict(cls, dct):
-        dct = dct.copy()
-        dct.update(super()._prep_from_dict(dct))
-        return dct
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
+        params.update({
+            'owner': dct['owner'],
+            'repo': dct['repo'],
+            'number': dct['number'],
+            'title': dct['title'],
+        })
+        return params
 
     @classmethod
     def _query_node_to_input_dict(cls, node):
@@ -117,10 +133,12 @@ class PullRequest(Issue):
         return dct
 
     @classmethod
-    def _prep_from_dict(cls, dct):
-        params = super()._prep_from_dict(dct)
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
         params['merged'] = dct['merged']
-        params['closes'] = [Issue.from_dict(iss) for iss in dct['closes']]
+        params['closes'] = tuple(
+            Issue.from_dict(issue) for issue in dct['closes']
+        )
         return params
 
     @classmethod
@@ -149,6 +167,17 @@ class Review(Contribution):
     def repo(self):
         return self.pr.repo
 
+    def to_dict(self):
+        dct = super().to_dict()
+        dct['pr'] = self.pr.to_dict()
+        return dct
+
+    @classmethod
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
+        params['pr'] = PullRequest.from_dict(dct['pr'])
+        return params
+
     @classmethod
     def _query_node_to_input_dict(cls, node):
         dct = super()._query_node_to_input_dict(node)
@@ -170,9 +199,35 @@ class Comment(Contribution):
     def repo(self):
         return self.issue_or_pr.repo
 
+    def to_dict(self):
+        dct = super().to_dict()
+        dct.update({
+            'issue_or_pr': self.issue_or_pr.to_dict(),
+            'body': self.body,
+        })
+        return dct
+
+    @classmethod
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
+        issue_or_pr = Contribution.from_dict(dct['issue_or_pr'])
+        if not isinstance(issue_or_pr, Issue):
+            raise ValueError("A comment target must be an issue or pull request")
+        params.update({
+            'issue_or_pr': issue_or_pr,
+            'body': dct['body'],
+        })
+        return params
+
     @classmethod
     def _query_node_to_input_dict(cls, node):
         dct = super()._query_node_to_input_dict(node)
         dct['issue_or_pr'] = Issue.from_query_node(node['issue'])
         dct['body'] = node['body']
         return dct
+
+
+_CONTRIBUTION_TYPES = {
+    contrib_cls.contrib_type: contrib_cls
+    for contrib_cls in (Issue, PullRequest, Review, Comment)
+}
