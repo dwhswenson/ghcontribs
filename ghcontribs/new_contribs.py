@@ -1,18 +1,31 @@
 import dataclasses
 from datetime import datetime
-
-from typing import List, ClassVar, Union
+from typing import ClassVar
 
 
 def parse_date(date):
     return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S%z")
 
 
-@dataclasses.dataclass(frozen=True, order=True)
+@dataclasses.dataclass(frozen=True)
 class Contribution:
-    created : datetime
-    url : str
-    contrib_type : ClassVar[str] = ""
+    created: datetime
+    url: str
+    contrib_type: ClassVar[str] = ""
+
+    def __post_init__(self):
+        if not isinstance(self.created, datetime):
+            raise TypeError("created must be a datetime")
+        if self.created.tzinfo is None or self.created.utcoffset() is None:
+            raise ValueError("created must be timezone-aware")
+
+    def _sort_key(self):
+        return (self.created, self.url, self.contrib_type)
+
+    def __lt__(self, other):
+        if not isinstance(other, Contribution):
+            return NotImplemented
+        return self._sort_key() < other._sort_key()
 
     @classmethod
     def _query_node_to_input_dict(cls, node):
@@ -51,11 +64,11 @@ class Contribution:
 
 @dataclasses.dataclass(frozen=True)
 class Issue(Contribution):
-    owner : str
-    repo : str
-    number : int
-    title : str
-    contrib_type : ClassVar[str] = "issue"
+    owner: str
+    repo: str
+    number: int
+    title: str
+    contrib_type: ClassVar[str] = "issue"
 
     def to_dict(self):
         dct = super().to_dict()
@@ -87,9 +100,13 @@ class Issue(Contribution):
 
 @dataclasses.dataclass(frozen=True)
 class PullRequest(Issue):
-    merged : bool
-    closes : List[Issue]
-    contrib_type : ClassVar[str] = "pullRequest"
+    merged: bool
+    closes: tuple[Issue, ...]
+    contrib_type: ClassVar[str] = "pullRequest"
+
+    def __post_init__(self):
+        super().__post_init__()
+        object.__setattr__(self, 'closes', tuple(self.closes))
 
     def to_dict(self):
         dct = super().to_dict()
@@ -121,8 +138,8 @@ class PullRequest(Issue):
 
 @dataclasses.dataclass(frozen=True)
 class Review(Contribution):
-    pr : PullRequest
-    contrib_type : ClassVar[str] = "pullRequestReview"
+    pr: PullRequest
+    contrib_type: ClassVar[str] = "pullRequestReview"
 
     @property
     def owner(self):
@@ -141,9 +158,9 @@ class Review(Contribution):
 
 @dataclasses.dataclass(frozen=True)
 class Comment(Contribution):
-    issue_or_pr : Union[Issue, PullRequest]
-    body : str
-    contrib_type : ClassVar[str] = "issueComment"
+    issue_or_pr: Issue | PullRequest
+    body: str
+    contrib_type: ClassVar[str] = "issueComment"
 
     @property
     def owner(self):
