@@ -10,6 +10,7 @@ from ghcontribs.new_contribs import (
     PullRequest,
     Review,
 )
+from ghcontribs.contribs_query import make_query
 
 
 UTC = timezone.utc
@@ -207,3 +208,124 @@ def test_deserialization_rejects_non_issue_comment_target():
 
     with pytest.raises(ValueError, match="target must be an issue"):
         Comment.from_dict(serialized)
+
+
+@pytest.fixture
+def issue_query_node():
+    return {
+        'createdAt': '2024-01-01T12:00:00Z',
+        'url': 'https://github.com/org/repo/issues/1',
+        'repository': {
+            'owner': {'login': 'org'},
+            'name': 'repo',
+        },
+        'number': 1,
+        'title': 'An issue',
+    }
+
+
+@pytest.fixture
+def pr_query_node(issue_query_node):
+    return {
+        'createdAt': '2024-01-02T12:00:00Z',
+        'url': 'https://github.com/org/repo/pull/2',
+        'repository': {
+            'owner': {'login': 'org'},
+            'name': 'repo',
+        },
+        'number': 2,
+        'title': 'A pull request',
+        'merged': True,
+        'closingIssuesReferences': {
+            'edges': [{'node': issue_query_node}],
+        },
+    }
+
+
+def test_issue_from_query_node(issue_query_node):
+    issue = Issue.from_query_node(issue_query_node)
+
+    assert issue == make_issue(created=datetime(2024, 1, 1, 12, tzinfo=UTC))
+
+
+def test_pull_request_from_query_node(pr_query_node):
+    pr = PullRequest.from_query_node(pr_query_node)
+
+    assert pr.created == datetime(2024, 1, 2, 12, tzinfo=UTC)
+    assert pr.url == 'https://github.com/org/repo/pull/2'
+    assert pr.merged is True
+    assert pr.closes == (make_issue(
+        created=datetime(2024, 1, 1, 12, tzinfo=UTC),
+    ),)
+    assert isinstance(pr.closes, tuple)
+
+
+def test_review_from_query_node(pr_query_node):
+    node = {
+        'createdAt': '2024-01-03T12:00:00Z',
+        'url': f"{pr_query_node['url']}#pullrequestreview-1",
+        'pullRequest': pr_query_node,
+    }
+
+    review = Review.from_query_node(node)
+
+    assert review.created == datetime(2024, 1, 3, 12, tzinfo=UTC)
+    assert review.pr == PullRequest.from_query_node(pr_query_node)
+    assert review.owner == 'org'
+    assert review.repo == 'repo'
+
+
+def test_issue_comment_from_query_node(issue_query_node):
+    node = {
+        'createdAt': '2024-01-04T12:00:00Z',
+        'url': f"{issue_query_node['url']}#issuecomment-1",
+        'body': 'An issue comment',
+        'issue': issue_query_node,
+        'pullRequest': None,
+    }
+
+    comment = Comment.from_query_node(node)
+
+    assert type(comment.issue_or_pr) is Issue
+    assert comment.issue_or_pr == Issue.from_query_node(issue_query_node)
+    assert comment.body == 'An issue comment'
+
+
+def test_pull_request_comment_from_query_node(
+    issue_query_node,
+    pr_query_node,
+):
+    node = {
+        'createdAt': '2024-01-04T12:00:00Z',
+        'url': f"{pr_query_node['url']}#issuecomment-1",
+        'body': 'A pull request comment',
+        'issue': issue_query_node,
+        'pullRequest': pr_query_node,
+    }
+
+    comment = Comment.from_query_node(node)
+
+    assert type(comment.issue_or_pr) is PullRequest
+    assert comment.issue_or_pr == PullRequest.from_query_node(pr_query_node)
+    assert comment.body == 'A pull request comment'
+
+
+def test_comment_query_requests_full_pull_request_data():
+    query = make_query(
+        issues=False,
+        pull_requests=False,
+        reviews=False,
+        comments=True,
+    ).template
+
+    assert 'issueComments(last: 100)' in query
+    assert 'pullRequest {\n            ...PR_INFO\n          }' in query
+    assert 'fragment PR_INFO on PullRequest' in query
+    assert 'closingIssuesReferences(first: 100)' in query
+
+
+def test_query_node_missing_required_data_raises_key_error(issue_query_node):
+    del issue_query_node['repository']
+
+    with pytest.raises(KeyError, match='repository'):
+        Issue.from_query_node(issue_query_node)

@@ -145,10 +145,10 @@ class PullRequest(Issue):
     def _query_node_to_input_dict(cls, node):
         dct = super()._query_node_to_input_dict(node)
         dct.update({
-            'closes' : [
+            'closes': tuple(
                 Issue.from_query_node(edge['node'])
                 for edge in node['closingIssuesReferences']['edges']
-            ],
+            ),
             'merged': node['merged']
         })
         return dct
@@ -222,7 +222,12 @@ class Comment(Contribution):
     @classmethod
     def _query_node_to_input_dict(cls, node):
         dct = super()._query_node_to_input_dict(node)
-        dct['issue_or_pr'] = Issue.from_query_node(node['issue'])
+        pull_request = node.get('pullRequest')
+        if pull_request is not None:
+            issue_or_pr = PullRequest.from_query_node(pull_request)
+        else:
+            issue_or_pr = Issue.from_query_node(node['issue'])
+        dct['issue_or_pr'] = issue_or_pr
         dct['body'] = node['body']
         return dct
 
