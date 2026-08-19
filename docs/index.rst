@@ -6,15 +6,27 @@
 Welcome to ghcontribs's documentation!
 ======================================
 
-``ghcontribs`` is a little package to facilitate getting a user's history of
-GitHub contributions (pull requests and issues created) for further
-analysis. It includes a few simple tools to simplify access to the list of
-contributions via the GitHub GraphQL API, and then to write those to JSON
-files for later use.
+``ghcontribs`` loads a user's issues, pull requests, reviews, and issue
+comments through the GitHub GraphQL API. Contributions retain their creation
+timestamps and relevant nested issue or pull-request data, and can be stored
+as JSON for later analysis.
 
 Using this will require creating your own `personal access token
 <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token>`_
 for GitHub.
+
+Monthly archives
+----------------
+
+Run the monthly exporter with::
+
+   python -m ghcontribs.monthly USERNAME --output-directory contributions
+
+Supply a token with ``--token`` or the ``GHCONTRIBS_TOKEN`` environment
+variable. The exporter writes ``YYYY-MM.json`` files using UTC month
+boundaries. Completed contribution years contain all twelve months; the
+current year ends at the current UTC month. Months without contributions are
+represented by an empty JSON array.
 
 .. toctree::
    :maxdepth: 2

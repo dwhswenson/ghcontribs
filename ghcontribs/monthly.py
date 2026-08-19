@@ -1,3 +1,5 @@
+import argparse
+import os
 import pathlib
 import string
 import typing
@@ -92,3 +94,40 @@ def write_all_contrib_files(
         contribs = get_monthly_contribs(user, year, month, auth)
         filename = directory_path / f'{year}-{month:02}.json'
         json_utils.write_json_file(filename, contribs)
+
+
+def main(args=None):
+    parser = argparse.ArgumentParser()
+    parser.add_argument('username')
+    parser.add_argument(
+        '--auth-user',
+        default=None,
+        help='Authorization user. If not given, USERNAME is used.',
+    )
+    parser.add_argument('--token', default=None)
+    parser.add_argument(
+        '--output-directory',
+        default='.',
+        help=(
+            'Directory for monthly YYYY-MM.json files '
+            '(default: current directory).'
+        ),
+    )
+    opts = parser.parse_args(args)
+
+    auth_user = opts.auth_user or opts.username
+    token = opts.token or os.environ.get('GHCONTRIBS_TOKEN')
+    if token is None:
+        parser.error(
+            'missing authorization token: use --token or set GHCONTRIBS_TOKEN'
+        )
+
+    write_all_contrib_files(
+        directory=opts.output_directory,
+        user=opts.username,
+        auth=(auth_user, token),
+    )
+
+
+if __name__ == '__main__':
+    main()

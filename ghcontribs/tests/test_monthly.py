@@ -10,6 +10,7 @@ from ghcontribs.monthly import (
     first_next_month,
     get_monthly_contribs,
     get_user_years,
+    main,
     write_all_contrib_files,
 )
 
@@ -156,3 +157,41 @@ def test_write_all_contrib_files_includes_empty_months_and_creates_directory(
         'issue', 'pullRequest', 'pullRequestReview', 'issueComment'
     ]
     assert may_data[0]['created'] == '2026-05-10T00:00:00+00:00'
+
+
+def test_main_prefers_explicit_token_and_forwards_output_directory():
+    with patch.dict('os.environ', {'GHCONTRIBS_TOKEN': 'environment'}), patch(
+        'ghcontribs.monthly.write_all_contrib_files'
+    ) as write_files:
+        main([
+            'octocat',
+            '--auth-user',
+            'auth-user',
+            '--token',
+            'explicit',
+            '--output-directory',
+            'out',
+        ])
+
+    write_files.assert_called_once_with(
+        directory='out', user='octocat', auth=('auth-user', 'explicit')
+    )
+
+
+def test_main_uses_environment_token_and_username_as_auth_user():
+    with patch.dict('os.environ', {'GHCONTRIBS_TOKEN': 'environment'}), patch(
+        'ghcontribs.monthly.write_all_contrib_files'
+    ) as write_files:
+        main(['octocat'])
+
+    write_files.assert_called_once_with(
+        directory='.', user='octocat', auth=('octocat', 'environment')
+    )
+
+
+def test_main_rejects_missing_token(capsys):
+    with patch.dict('os.environ', {}, clear=True), pytest.raises(SystemExit) as exc:
+        main(['octocat'])
+
+    assert exc.value.code == 2
+    assert 'missing authorization token' in capsys.readouterr().err
