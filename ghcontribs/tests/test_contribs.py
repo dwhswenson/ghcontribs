@@ -4,14 +4,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from ghcontribs.new_contribs import (
+from ghcontribs.contrib import (
     Comment,
     Contribution,
     Issue,
     PullRequest,
     Review,
 )
-from ghcontribs.contribs_query import (
+from ghcontribs.get_contribs import (
     get_comments,
     get_contributions,
     make_query,
@@ -495,7 +495,7 @@ def test_get_contributions_paginates_connections_independently(
     ]
 
     with patch(
-        'ghcontribs.contribs_query.execute_query',
+        'ghcontribs.get_contribs.execute_query',
         side_effect=responses,
     ) as mock_execute_query:
         contributions = get_contributions(
@@ -611,7 +611,7 @@ def test_get_comments_paginates_filters_and_sorts(issue_query_node):
     ]
 
     with patch(
-        'ghcontribs.contribs_query.execute_query',
+        'ghcontribs.get_contribs.execute_query',
         side_effect=responses,
     ) as mock_execute_query:
         comments = get_comments(
@@ -690,7 +690,7 @@ def test_get_comments_requires_cursor_for_another_page(issue_query_node):
         end_cursor=None,
     )
 
-    with patch('ghcontribs.contribs_query.execute_query', return_value=response):
+    with patch('ghcontribs.get_contribs.execute_query', return_value=response):
         with pytest.raises(ValueError, match='Missing new end cursor'):
             get_comments(
                 'octocat',
