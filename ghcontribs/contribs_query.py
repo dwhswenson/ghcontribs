@@ -3,7 +3,7 @@ import string
 import textwrap
 from datetime import datetime
 
-from .new_contribs import Comment
+from .new_contribs import Comment, Issue, PullRequest, Review
 from .query import GH_API_ENDPOINT, query as execute_query
 
 REPO_FRAG = """
@@ -58,7 +58,11 @@ fragment REVIEW_INFO on PullRequestReview {
 """
 
 _CONTRIBUTIONS_TEMPLATE = string.Template("""
-$CONTRIBUTION_TYPE(first: $$NUM) {
+$CONTRIBUTION_TYPE(first: $$NUM, after: $$$AFTER_NAME) {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
   edges {
     node {
       $NODE_TYPE {
@@ -93,21 +97,42 @@ issueComments(first: $COMMENT_NUM, after: $COMMENT_AFTER) {
 
 ISSUE_CONTRIBUTIONS = _CONTRIBUTIONS_TEMPLATE.substitute(
     CONTRIBUTION_TYPE="issueContributions",
+    AFTER_NAME="ISSUE_AFTER",
     NODE_TYPE='issue',
     INFO_TYPE="ISSUE_INFO",
 )
 
 PR_CONTRIBUTIONS = _CONTRIBUTIONS_TEMPLATE.substitute(
     CONTRIBUTION_TYPE="pullRequestContributions",
+    AFTER_NAME="PULL_REQUEST_AFTER",
     NODE_TYPE="pullRequest",
     INFO_TYPE="PR_INFO",
 )
 
 REVIEW_CONTRIBUTIONS = _CONTRIBUTIONS_TEMPLATE.substitute(
     CONTRIBUTION_TYPE="pullRequestReviewContributions",
+    AFTER_NAME="REVIEW_AFTER",
     NODE_TYPE="pullRequestReview",
     INFO_TYPE="REVIEW_INFO",
 )
+
+
+_PAGE_SPECS = {
+    'issues': ('issueContributions', 'issue', Issue, 'ISSUE_AFTER'),
+    'pull_requests': (
+        'pullRequestContributions',
+        'pullRequest',
+        PullRequest,
+        'PULL_REQUEST_AFTER',
+    ),
+    'reviews': (
+        'pullRequestReviewContributions',
+        'pullRequestReview',
+        Review,
+        'REVIEW_AFTER',
+    ),
+    'comments': ('issueComments', None, Comment, 'COMMENT_AFTER'),
+}
 
 
 def make_query(issues, pull_requests, reviews, comments):
@@ -146,15 +171,19 @@ def make_query(issues, pull_requests, reviews, comments):
     return string.Template("".join(fragments) + '\n' + query)
 
 
-def get_comments(
+def get_contributions(
     user,
     start,
     end,
     auth,
+    issues=True,
+    pull_requests=True,
+    reviews=True,
+    comments=True,
     page_size=100,
     api_endpoint=GH_API_ENDPOINT,
 ):
-    """Return all of a user's issue comments created in an inclusive range."""
+    """Return selected contribution types from an inclusive date range."""
     for name, value in [('start', start), ('end', end)]:
         if not isinstance(value, datetime):
             raise TypeError(f"{name} must be a datetime")
@@ -165,43 +194,92 @@ def get_comments(
     if not 1 <= page_size <= 100:
         raise ValueError("page_size must be between 1 and 100")
 
-    query_template = make_query(
+    selected = {
+        'issues': issues,
+        'pull_requests': pull_requests,
+        'reviews': reviews,
+        'comments': comments,
+    }
+    active = {name for name, enabled in selected.items() if enabled}
+    after = {name: None for name in active}
+    contributions = []
+
+    while active:
+        query_template = make_query(**{
+            name: name in active
+            for name in selected
+        })
+        substitutions = {
+            'USER': user,
+            'START': start.isoformat(),
+            'END': end.isoformat(),
+            'NUM': page_size,
+            'COMMENT_NUM': page_size,
+        }
+        substitutions.update({
+            cursor_name: json.dumps(after.get(name))
+            for name, (_, _, _, cursor_name) in _PAGE_SPECS.items()
+        })
+        query_string = query_template.substitute(
+            **substitutions
+        )
+        response = execute_query(query_string, auth, api_endpoint)
+        response.raise_for_status()
+        user_data = response.json()['data']['user']
+
+        for name in tuple(active):
+            connection_name, node_name, contribution_cls, _ = _PAGE_SPECS[name]
+            if name == 'comments':
+                connection = user_data[connection_name]
+            else:
+                connection = user_data['contributionsCollection'][
+                    connection_name
+                ]
+
+            for edge in connection['edges']:
+                node = edge['node']
+                if node_name is not None:
+                    node = node[node_name]
+                contribution = contribution_cls.from_query_node(node)
+                if name != 'comments' or start <= contribution.created <= end:
+                    contributions.append(contribution)
+
+            page_info = connection['pageInfo']
+            if not page_info['hasNextPage']:
+                active.remove(name)
+                continue
+
+            next_cursor = page_info['endCursor']
+            if next_cursor is None or next_cursor == after[name]:
+                raise ValueError(f"Missing new end cursor for {name} page")
+            after[name] = next_cursor
+
+    return tuple(sorted(contributions))
+
+
+def get_comments(
+    user,
+    start,
+    end,
+    auth,
+    page_size=100,
+    api_endpoint=GH_API_ENDPOINT,
+):
+    """Return all of a user's issue comments created in an inclusive range."""
+    return get_contributions(
+        user=user,
+        start=start,
+        end=end,
+        auth=auth,
         issues=False,
         pull_requests=False,
         reviews=False,
         comments=True,
+        page_size=page_size,
+        api_endpoint=api_endpoint,
     )
-    comments = []
-    after = None
-
-    while True:
-        query_string = query_template.substitute(
-            USER=user,
-            COMMENT_NUM=page_size,
-            COMMENT_AFTER=json.dumps(after),
-        )
-        response = execute_query(query_string, auth, api_endpoint)
-        response.raise_for_status()
-        connection = response.json()['data']['user']['issueComments']
-
-        for edge in connection['edges']:
-            comment = Comment.from_query_node(edge['node'])
-            if start <= comment.created <= end:
-                comments.append(comment)
-
-        page_info = connection['pageInfo']
-        if not page_info['hasNextPage']:
-            break
-        after = page_info['endCursor']
-        if after is None:
-            raise ValueError("Missing end cursor for the next comment page")
-
-    return tuple(sorted(comments))
 
 
 # LIMITATIONS:
-# * assumes you have created no more that 100 each of issues/PRs/reviews
-#   (this one should be relaxed later, so it can replace the current
-#   query used to get contribs for tracking total contribs)
 # * assumes no PR closes more than 100 issues (this might just be left in
 #   place)

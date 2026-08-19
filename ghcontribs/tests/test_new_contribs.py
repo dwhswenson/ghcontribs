@@ -11,7 +11,11 @@ from ghcontribs.new_contribs import (
     PullRequest,
     Review,
 )
-from ghcontribs.contribs_query import get_comments, make_query
+from ghcontribs.contribs_query import (
+    get_comments,
+    get_contributions,
+    make_query,
+)
 
 
 UTC = timezone.utc
@@ -324,23 +328,26 @@ def test_comment_query_requests_full_pull_request_data():
 
 
 @pytest.mark.parametrize(
-    'enabled,collection,node_fragment,required_fragments',
+    'enabled,collection,cursor,node_fragment,required_fragments',
     [
         (
             'issues',
             'issueContributions',
+            'ISSUE_AFTER',
             '...ISSUE_INFO',
             ('REPO_INFO', 'ISSUE_INFO'),
         ),
         (
             'pull_requests',
             'pullRequestContributions',
+            'PULL_REQUEST_AFTER',
             '...PR_INFO',
             ('REPO_INFO', 'ISSUE_INFO', 'PR_INFO'),
         ),
         (
             'reviews',
             'pullRequestReviewContributions',
+            'REVIEW_AFTER',
             '...REVIEW_INFO',
             ('REPO_INFO', 'ISSUE_INFO', 'PR_INFO', 'REVIEW_INFO'),
         ),
@@ -349,6 +356,7 @@ def test_comment_query_requests_full_pull_request_data():
 def test_contribution_query_generation(
     enabled,
     collection,
+    cursor,
     node_fragment,
     required_fragments,
 ):
@@ -365,6 +373,9 @@ def test_contribution_query_generation(
         START='2024-01-01T00:00:00+00:00',
         END='2024-02-01T00:00:00+00:00',
         NUM=17,
+        ISSUE_AFTER='null',
+        PULL_REQUEST_AFTER='null',
+        REVIEW_AFTER='null',
     )
 
     assert 'user(login: "octocat")' in query
@@ -373,12 +384,15 @@ def test_contribution_query_generation(
         'from: "2024-01-01T00:00:00+00:00", '
         'to: "2024-02-01T00:00:00+00:00")'
     ) in query
-    assert f'{collection}(first: 17)' in query
+    assert f'{collection}(first: 17, after: null)' in query
+    assert 'hasNextPage' in query
+    assert 'endCursor' in query
     assert node_fragment in query
     assert '$USER' not in query
     assert '$START' not in query
     assert '$END' not in query
     assert '$NUM' not in query
+    assert f'${cursor}' not in query
     for fragment in required_fragments:
         assert query.count(f'fragment {fragment} ') == 1
 
@@ -396,6 +410,126 @@ def test_query_fragments_have_deterministic_dependency_order():
         for fragment in ('REPO_INFO', 'ISSUE_INFO', 'PR_INFO', 'REVIEW_INFO')
     ]
     assert positions == sorted(positions)
+
+
+def make_connection(nodes, node_name, has_next_page, end_cursor):
+    return {
+        'pageInfo': {
+            'hasNextPage': has_next_page,
+            'endCursor': end_cursor,
+        },
+        'edges': [
+            {'node': {node_name: node}}
+            for node in nodes
+        ],
+    }
+
+
+def make_contributions_response(connections):
+    payload = {
+        'data': {
+            'user': {
+                'contributionsCollection': connections,
+            },
+        },
+    }
+    return Mock(json=Mock(return_value=payload))
+
+
+def test_get_contributions_paginates_connections_independently(
+    issue_query_node,
+    pr_query_node,
+):
+    review_query_node = {
+        'createdAt': '2024-01-03T12:00:00Z',
+        'url': f"{pr_query_node['url']}#pullrequestreview-1",
+        'pullRequest': pr_query_node,
+    }
+    later_pr_query_node = {
+        **pr_query_node,
+        'createdAt': '2024-01-04T12:00:00Z',
+        'url': 'https://github.com/org/repo/pull/3',
+        'number': 3,
+        'title': 'Another pull request',
+    }
+    responses = [
+        make_contributions_response({
+            'issueContributions': make_connection(
+                [issue_query_node],
+                'issue',
+                has_next_page=False,
+                end_cursor=None,
+            ),
+            'pullRequestContributions': make_connection(
+                [pr_query_node],
+                'pullRequest',
+                has_next_page=True,
+                end_cursor='next-pr-page',
+            ),
+            'pullRequestReviewContributions': make_connection(
+                [review_query_node],
+                'pullRequestReview',
+                has_next_page=False,
+                end_cursor=None,
+            ),
+        }),
+        make_contributions_response({
+            'pullRequestContributions': make_connection(
+                [later_pr_query_node],
+                'pullRequest',
+                has_next_page=False,
+                end_cursor=None,
+            ),
+        }),
+    ]
+
+    with patch(
+        'ghcontribs.contribs_query.execute_query',
+        side_effect=responses,
+    ) as mock_execute_query:
+        contributions = get_contributions(
+            user='octocat',
+            start=datetime(2024, 1, 1, tzinfo=UTC),
+            end=datetime(2024, 2, 1, tzinfo=UTC),
+            auth=('octocat', 'token'),
+            issues=True,
+            pull_requests=True,
+            reviews=True,
+            comments=False,
+            page_size=1,
+        )
+
+    assert [type(contribution) for contribution in contributions] == [
+        Issue,
+        PullRequest,
+        Review,
+        PullRequest,
+    ]
+    assert [contribution.created.day for contribution in contributions] == [
+        1,
+        2,
+        3,
+        4,
+    ]
+    assert mock_execute_query.call_count == 2
+
+    first_query = mock_execute_query.call_args_list[0].args[0]
+    assert 'issueContributions(first: 1, after: null)' in first_query
+    assert 'pullRequestContributions(first: 1, after: null)' in first_query
+    assert (
+        'pullRequestReviewContributions(first: 1, after: null)'
+        in first_query
+    )
+
+    second_query = mock_execute_query.call_args_list[1].args[0]
+    assert (
+        'pullRequestContributions(first: 1, after: "next-pr-page")'
+        in second_query
+    )
+    assert 'issueContributions' not in second_query
+    assert 'pullRequestReviewContributions' not in second_query
+    for response in responses:
+        response.raise_for_status.assert_called_once_with()
 
 
 def make_comment_query_node(issue_query_node, created, number):
@@ -546,7 +680,7 @@ def test_get_comments_requires_cursor_for_another_page(issue_query_node):
     )
 
     with patch('ghcontribs.contribs_query.execute_query', return_value=response):
-        with pytest.raises(ValueError, match='Missing end cursor'):
+        with pytest.raises(ValueError, match='Missing new end cursor'):
             get_comments(
                 'octocat',
                 datetime(2024, 1, 1, tzinfo=UTC),
