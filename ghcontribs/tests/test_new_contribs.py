@@ -320,6 +320,81 @@ def test_comment_query_requests_full_pull_request_data():
     assert 'body' not in query
 
 
+@pytest.mark.parametrize(
+    'enabled,collection,node_fragment,required_fragments',
+    [
+        (
+            'issues',
+            'issueContributions',
+            '...ISSUE_INFO',
+            ('REPO_INFO', 'ISSUE_INFO'),
+        ),
+        (
+            'pull_requests',
+            'pullRequestContributions',
+            '...PR_INFO',
+            ('REPO_INFO', 'ISSUE_INFO', 'PR_INFO'),
+        ),
+        (
+            'reviews',
+            'pullRequestReviewContributions',
+            '...REVIEW_INFO',
+            ('REPO_INFO', 'ISSUE_INFO', 'PR_INFO', 'REVIEW_INFO'),
+        ),
+    ],
+)
+def test_contribution_query_generation(
+    enabled,
+    collection,
+    node_fragment,
+    required_fragments,
+):
+    selections = {
+        'issues': False,
+        'pull_requests': False,
+        'reviews': False,
+        'comments': False,
+    }
+    selections[enabled] = True
+
+    query = make_query(**selections).substitute(
+        USER='octocat',
+        START='2024-01-01T00:00:00+00:00',
+        END='2024-02-01T00:00:00+00:00',
+        NUM=17,
+    )
+
+    assert 'user(login: "octocat")' in query
+    assert (
+        'contributionsCollection('
+        'from: "2024-01-01T00:00:00+00:00", '
+        'to: "2024-02-01T00:00:00+00:00")'
+    ) in query
+    assert f'{collection}(first: 17)' in query
+    assert node_fragment in query
+    assert '$USER' not in query
+    assert '$START' not in query
+    assert '$END' not in query
+    assert '$NUM' not in query
+    for fragment in required_fragments:
+        assert query.count(f'fragment {fragment} ') == 1
+
+
+def test_query_fragments_have_deterministic_dependency_order():
+    query = make_query(
+        issues=True,
+        pull_requests=True,
+        reviews=True,
+        comments=True,
+    ).template
+
+    positions = [
+        query.index(f'fragment {fragment} ')
+        for fragment in ('REPO_INFO', 'ISSUE_INFO', 'PR_INFO', 'REVIEW_INFO')
+    ]
+    assert positions == sorted(positions)
+
+
 def test_query_node_missing_required_data_raises_key_error(issue_query_node):
     del issue_query_node['repository']
 

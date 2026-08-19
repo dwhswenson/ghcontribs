@@ -103,16 +103,22 @@ REVIEW_CONTRIBUTIONS = _CONTRIBUTIONS_TEMPLATE.substitute(
 
 def make_query(issues, pull_requests, reviews, comments):
     contribs = ""
-    fragments = set([])
+    fragments = []
+
+    def add_fragments(*new_fragments):
+        for fragment in new_fragments:
+            if fragment not in fragments:
+                fragments.append(fragment)
+
     if issues:
         contribs += ISSUE_CONTRIBUTIONS
-        fragments.update({REPO_FRAG, ISSUE_FRAG})
+        add_fragments(REPO_FRAG, ISSUE_FRAG)
     if pull_requests:
         contribs += PR_CONTRIBUTIONS
-        fragments.update({REPO_FRAG, ISSUE_FRAG, PR_FRAG})
+        add_fragments(REPO_FRAG, ISSUE_FRAG, PR_FRAG)
     if reviews:
         contribs += REVIEW_CONTRIBUTIONS
-        fragments.update({REPO_FRAG, ISSUE_FRAG, PR_FRAG, REVIEW_FRAG})
+        add_fragments(REPO_FRAG, ISSUE_FRAG, PR_FRAG, REVIEW_FRAG)
 
     query = 'query {\n  user(login: "$USER") {\n'
     if contribs:
@@ -125,7 +131,7 @@ def make_query(issues, pull_requests, reviews, comments):
 
     if comments:
         query += textwrap.indent(COMMENT_TEMPLATE, " " * 4) + "\n"
-        fragments.update({REPO_FRAG, ISSUE_FRAG, PR_FRAG})
+        add_fragments(REPO_FRAG, ISSUE_FRAG, PR_FRAG)
 
     query += "  }\n}"
     return string.Template("".join(fragments) + '\n' + query)
