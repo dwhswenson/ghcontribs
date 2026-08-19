@@ -46,4 +46,5 @@ def get_user_contribs(user: str,
                                           START=start,
                                           END=end)
     result = query(query_str, auth, api_endpoint)
+    result.raise_for_status()
     return result.json()['data']['user']['contributionsCollection']

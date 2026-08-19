@@ -69,6 +69,7 @@ def test_get_user_contributions():
         )
     assert contribs == {'hasActivityInThePast': True,
                         'hasAnyContributions': True}
+    mock_req.raise_for_status.assert_called_once_with()
     expected_query = ('username=some_user\n'
                       'start=2021-01-01T00:00:00+00:00\n'
                       'end=2021-01-02T00:00:00+00:00\n')
