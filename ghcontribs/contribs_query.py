@@ -1,5 +1,10 @@
+import json
 import string
 import textwrap
+from datetime import datetime
+
+from .new_contribs import Comment
+from .query import GH_API_ENDPOINT, query as execute_query
 
 REPO_FRAG = """
 fragment REPO_INFO on Repository {
@@ -66,7 +71,11 @@ $CONTRIBUTION_TYPE(first: $$NUM) {
 )
 
 COMMENT_TEMPLATE = """
-issueComments(last: 100) {
+issueComments(first: $COMMENT_NUM, after: $COMMENT_AFTER) {
+  pageInfo {
+    hasNextPage
+    endCursor
+  }
   edges {
     node {
       createdAt
@@ -135,6 +144,59 @@ def make_query(issues, pull_requests, reviews, comments):
 
     query += "  }\n}"
     return string.Template("".join(fragments) + '\n' + query)
+
+
+def get_comments(
+    user,
+    start,
+    end,
+    auth,
+    page_size=100,
+    api_endpoint=GH_API_ENDPOINT,
+):
+    """Return all of a user's issue comments created in an inclusive range."""
+    for name, value in [('start', start), ('end', end)]:
+        if not isinstance(value, datetime):
+            raise TypeError(f"{name} must be a datetime")
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise ValueError(f"{name} must be timezone-aware")
+    if start > end:
+        raise ValueError("start must not be after end")
+    if not 1 <= page_size <= 100:
+        raise ValueError("page_size must be between 1 and 100")
+
+    query_template = make_query(
+        issues=False,
+        pull_requests=False,
+        reviews=False,
+        comments=True,
+    )
+    comments = []
+    after = None
+
+    while True:
+        query_string = query_template.substitute(
+            USER=user,
+            COMMENT_NUM=page_size,
+            COMMENT_AFTER=json.dumps(after),
+        )
+        response = execute_query(query_string, auth, api_endpoint)
+        response.raise_for_status()
+        connection = response.json()['data']['user']['issueComments']
+
+        for edge in connection['edges']:
+            comment = Comment.from_query_node(edge['node'])
+            if start <= comment.created <= end:
+                comments.append(comment)
+
+        page_info = connection['pageInfo']
+        if not page_info['hasNextPage']:
+            break
+        after = page_info['endCursor']
+        if after is None:
+            raise ValueError("Missing end cursor for the next comment page")
+
+    return tuple(sorted(comments))
 
 
 # LIMITATIONS:

@@ -1,5 +1,6 @@
 import dataclasses
 from datetime import datetime, timedelta, timezone
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -10,7 +11,7 @@ from ghcontribs.new_contribs import (
     PullRequest,
     Review,
 )
-from ghcontribs.contribs_query import make_query
+from ghcontribs.contribs_query import get_comments, make_query
 
 
 UTC = timezone.utc
@@ -313,7 +314,9 @@ def test_comment_query_requests_full_pull_request_data():
         comments=True,
     ).template
 
-    assert 'issueComments(last: 100)' in query
+    assert 'issueComments(first: $COMMENT_NUM, after: $COMMENT_AFTER)' in query
+    assert 'hasNextPage' in query
+    assert 'endCursor' in query
     assert 'pullRequest {\n            ...PR_INFO\n          }' in query
     assert 'fragment PR_INFO on PullRequest' in query
     assert 'closingIssuesReferences(first: 100)' in query
@@ -393,6 +396,163 @@ def test_query_fragments_have_deterministic_dependency_order():
         for fragment in ('REPO_INFO', 'ISSUE_INFO', 'PR_INFO', 'REVIEW_INFO')
     ]
     assert positions == sorted(positions)
+
+
+def make_comment_query_node(issue_query_node, created, number):
+    return {
+        'createdAt': created,
+        'url': f"{issue_query_node['url']}#issuecomment-{number}",
+        'issue': issue_query_node,
+        'pullRequest': None,
+    }
+
+
+def make_comment_response(nodes, has_next_page, end_cursor):
+    payload = {
+        'data': {
+            'user': {
+                'issueComments': {
+                    'pageInfo': {
+                        'hasNextPage': has_next_page,
+                        'endCursor': end_cursor,
+                    },
+                    'edges': [{'node': node} for node in nodes],
+                },
+            },
+        },
+    }
+    return Mock(json=Mock(return_value=payload))
+
+
+def test_get_comments_paginates_filters_and_sorts(issue_query_node):
+    responses = [
+        make_comment_response(
+            nodes=[
+                make_comment_query_node(
+                    issue_query_node,
+                    created='2024-03-01T00:00:00Z',
+                    number=4,
+                ),
+                make_comment_query_node(
+                    issue_query_node,
+                    created='2024-02-01T00:00:00Z',
+                    number=3,
+                ),
+            ],
+            has_next_page=True,
+            end_cursor='next-page',
+        ),
+        make_comment_response(
+            nodes=[
+                make_comment_query_node(
+                    issue_query_node,
+                    created='2023-12-31T23:59:59Z',
+                    number=0,
+                ),
+                make_comment_query_node(
+                    issue_query_node,
+                    created='2024-01-15T00:00:00Z',
+                    number=2,
+                ),
+                make_comment_query_node(
+                    issue_query_node,
+                    created='2024-01-01T00:00:00Z',
+                    number=1,
+                ),
+            ],
+            has_next_page=False,
+            end_cursor=None,
+        ),
+    ]
+
+    with patch(
+        'ghcontribs.contribs_query.execute_query',
+        side_effect=responses,
+    ) as mock_execute_query:
+        comments = get_comments(
+            user='octocat',
+            start=datetime(2024, 1, 1, tzinfo=UTC),
+            end=datetime(2024, 2, 1, tzinfo=UTC),
+            auth=('octocat', 'token'),
+            page_size=2,
+        )
+
+    assert [comment.created for comment in comments] == [
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 1, 15, tzinfo=UTC),
+        datetime(2024, 2, 1, tzinfo=UTC),
+    ]
+    assert isinstance(comments, tuple)
+    assert mock_execute_query.call_count == 2
+
+    first_query = mock_execute_query.call_args_list[0].args[0]
+    second_query = mock_execute_query.call_args_list[1].args[0]
+    assert 'issueComments(first: 2, after: null)' in first_query
+    assert 'issueComments(first: 2, after: "next-page")' in second_query
+    for call in mock_execute_query.call_args_list:
+        assert call.args[1:] == (
+            ('octocat', 'token'),
+            'https://api.github.com/graphql',
+        )
+    for response in responses:
+        response.raise_for_status.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    'start,end,error,match',
+    [
+        (
+            datetime(2024, 1, 1),
+            datetime(2024, 2, 1, tzinfo=UTC),
+            ValueError,
+            'start must be timezone-aware',
+        ),
+        (
+            datetime(2024, 1, 1, tzinfo=UTC),
+            datetime(2024, 2, 1),
+            ValueError,
+            'end must be timezone-aware',
+        ),
+        (
+            datetime(2024, 2, 1, tzinfo=UTC),
+            datetime(2024, 1, 1, tzinfo=UTC),
+            ValueError,
+            'start must not be after end',
+        ),
+    ],
+)
+def test_get_comments_validates_date_range(start, end, error, match):
+    with pytest.raises(error, match=match):
+        get_comments('octocat', start, end, auth=('octocat', 'token'))
+
+
+@pytest.mark.parametrize('page_size', [0, 101])
+def test_get_comments_validates_page_size(page_size):
+    with pytest.raises(ValueError, match='page_size must be between 1 and 100'):
+        get_comments(
+            'octocat',
+            datetime(2024, 1, 1, tzinfo=UTC),
+            datetime(2024, 2, 1, tzinfo=UTC),
+            auth=('octocat', 'token'),
+            page_size=page_size,
+        )
+
+
+def test_get_comments_requires_cursor_for_another_page(issue_query_node):
+    response = make_comment_response(
+        nodes=[],
+        has_next_page=True,
+        end_cursor=None,
+    )
+
+    with patch('ghcontribs.contribs_query.execute_query', return_value=response):
+        with pytest.raises(ValueError, match='Missing end cursor'):
+            get_comments(
+                'octocat',
+                datetime(2024, 1, 1, tzinfo=UTC),
+                datetime(2024, 2, 1, tzinfo=UTC),
+                auth=('octocat', 'token'),
+            )
 
 
 def test_query_node_missing_required_data_raises_key_error(issue_query_node):
