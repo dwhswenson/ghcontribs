@@ -12,6 +12,7 @@ class Contribution:
     created: datetime
     url: str
     contrib_type: ClassVar[str] = ""
+    _query_date_field: ClassVar[str] = "createdAt"
 
     def __post_init__(self):
         if not isinstance(self.created, datetime):
@@ -31,7 +32,7 @@ class Contribution:
     def _query_node_to_input_dict(cls, node):
         return {
             'url': node['url'],
-            'created': parse_date(node['createdAt']),
+            'created': parse_date(node[cls._query_date_field]),
         }
 
     @classmethod
@@ -158,6 +159,7 @@ class PullRequest(Issue):
 class Review(Contribution):
     pr: PullRequest
     contrib_type: ClassVar[str] = "pullRequestReview"
+    _query_date_field: ClassVar[str] = "submittedAt"
 
     @property
     def owner(self):

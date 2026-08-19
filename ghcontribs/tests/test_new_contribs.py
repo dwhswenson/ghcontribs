@@ -264,7 +264,7 @@ def test_pull_request_from_query_node(pr_query_node):
 
 def test_review_from_query_node(pr_query_node):
     node = {
-        'createdAt': '2024-01-03T12:00:00Z',
+        'submittedAt': '2024-01-03T12:00:00Z',
         'url': f"{pr_query_node['url']}#pullrequestreview-1",
         'pullRequest': pr_query_node,
     }
@@ -412,6 +412,17 @@ def test_query_fragments_have_deterministic_dependency_order():
     assert positions == sorted(positions)
 
 
+def test_review_query_uses_submission_timestamp():
+    query = make_query(
+        issues=False,
+        pull_requests=False,
+        reviews=True,
+        comments=False,
+    ).template
+
+    assert 'fragment REVIEW_INFO on PullRequestReview {\n  url\n  submittedAt' in query
+
+
 def make_connection(nodes, node_name, has_next_page, end_cursor):
     return {
         'pageInfo': {
@@ -441,7 +452,7 @@ def test_get_contributions_paginates_connections_independently(
     pr_query_node,
 ):
     review_query_node = {
-        'createdAt': '2024-01-03T12:00:00Z',
+        'submittedAt': '2024-01-03T12:00:00Z',
         'url': f"{pr_query_node['url']}#pullrequestreview-1",
         'pullRequest': pr_query_node,
     }

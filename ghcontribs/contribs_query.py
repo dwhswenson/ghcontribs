@@ -50,7 +50,7 @@ fragment PR_INFO on PullRequest {
 REVIEW_FRAG = """
 fragment REVIEW_INFO on PullRequestReview {
   url
-  createdAt
+  submittedAt
   pullRequest {
     ...PR_INFO
   }
