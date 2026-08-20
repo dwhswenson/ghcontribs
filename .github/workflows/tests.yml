@@ -19,6 +19,26 @@ defaults:
     shell: bash -l {0}
 
 jobs:
+  visualization:
+    runs-on: ubuntu-latest
+    name: "Visualization"
+    defaults:
+      run:
+        working-directory: ghcontribs-viz
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ghcontribs-viz/package-lock.json
+      - name: "Install"
+        run: npm ci
+      - name: "Vitest"
+        run: npm test
+      - name: "Build"
+        run: npm run build
+
   test_suite:
     runs-on: ubuntu-latest
     name: "Test suite"
