@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/dwhswenson/ghcontribs/main/schemas/v1/visualization-index.schema.json",
+  "$id": "visualization-index.schema.json",
   "title": "ghcontribs visualization index",
   "description": "The compact owner and repository index consumed by the ghcontribs visualization. Owners and repositories are emitted in deterministic case-folded name order. Cross-field aggregation and ordering invariants are enforced by the organizer rather than JSON Schema.",
   "type": "object",

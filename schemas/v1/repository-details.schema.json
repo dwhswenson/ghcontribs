@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/dwhswenson/ghcontribs/main/schemas/v1/repository-details.schema.json",
+  "$id": "repository-details.schema.json",
   "title": "ghcontribs visualization repository details",
   "description": "Detailed contributions for one repository. The organizer enforces that key is exactly owner/name, every contribution belongs to that repository, and contributions are sorted by created instant, URL, and contribution type.",
   "type": "object",

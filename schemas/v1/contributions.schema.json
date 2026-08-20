@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://raw.githubusercontent.com/dwhswenson/ghcontribs/main/schemas/v1/contributions.schema.json",
+  "$id": "contributions.schema.json",
   "title": "ghcontribs monthly contributions",
   "description": "A monthly JSON dump of GitHub issues, pull requests, pull request reviews, and issue comments.",
   "type": "array",
