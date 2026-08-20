@@ -121,6 +121,31 @@ describe('layoutEcosystem', () => {
     expect(area(large!)).toBeCloseTo(area(small!))
   })
 
+  it('gives multiple owners without repositories finite visible regions', () => {
+    const emptyOwnersIndex: VisualizationIndex = {
+      schema_version: 1,
+      user: 'octocat',
+      source: { first_month: '2024-01', last_month: '2024-01' },
+      owners: [
+        { owner: 'EmptyAlpha', repositories: [] },
+        { owner: 'EmptyBeta', repositories: [] },
+      ],
+    }
+    const layout = layoutEcosystem(
+      new VisualizationModel(emptyOwnersIndex).getSnapshot(),
+    )
+
+    expect(layout.owners).toHaveLength(2)
+    for (const owner of layout.owners) {
+      expect([owner.x, owner.y, owner.width, owner.height].every(Number.isFinite)).toBe(
+        true,
+      )
+      expect(owner.width).toBeGreaterThan(0)
+      expect(owner.height).toBeGreaterThan(0)
+      expect(owner.repositories).toEqual([])
+    }
+  })
+
   it('rejects non-positive dimensions', () => {
     const snapshot = new VisualizationModel(structuredClone(index)).getSnapshot()
     expect(() => layoutEcosystem(snapshot, 0, 800)).toThrow('must be positive')
