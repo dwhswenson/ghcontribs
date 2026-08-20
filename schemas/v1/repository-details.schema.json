@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "repository-details.schema.json",
+  "title": "ghcontribs visualization repository details",
+  "description": "Detailed contributions for one repository. The organizer enforces that key is exactly owner/name, every contribution belongs to that repository, and contributions are sorted by created instant, URL, and contribution type.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "key",
+    "owner",
+    "name",
+    "contributions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "key": {
+      "type": "string",
+      "pattern": "^[^/]+/[^/]+$",
+      "description": "The stable repository identifier, exactly owner/name."
+    },
+    "owner": {
+      "type": "string",
+      "minLength": 1,
+      "description": "GitHub repository owner with source casing preserved."
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Repository name with source casing preserved."
+    },
+    "contributions": {
+      "type": "array",
+      "items": {
+        "$ref": "contributions.schema.json#/$defs/contribution"
+      }
+    }
+  },
+  "additionalProperties": false
+}
