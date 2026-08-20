@@ -13,3 +13,10 @@ export type {
   SourceContributionType,
   VisualizationIndex,
 } from './data/types.ts'
+export { mountContributionEcosystem } from './mount.ts'
+export type {
+  ContributionEcosystem,
+  ContributionEcosystemOptions,
+} from './mount.ts'
+export type { MonthRange } from './model/months.ts'
+export type { SizeMode } from './model/weights.ts'
