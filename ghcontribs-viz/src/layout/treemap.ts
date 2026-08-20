@@ -141,9 +141,11 @@ export function layoutEcosystem(
   const bounds = inset({ x: 0, y: 0, width, height }, OUTER_PADDING)
   const owners = snapshot.owners.map((owner) => ({
     value: owner,
-    weight: owner.repositories.reduce(
-      (sum, repository) => sum + effectiveWeight(repository.weight),
-      0,
+    weight: effectiveWeight(
+      owner.repositories.reduce(
+        (sum, repository) => sum + effectiveWeight(repository.weight),
+        0,
+      ),
     ),
   }))
 
