@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dwhswenson/ghcontribs/main/schemas/v1/visualization-index.schema.json",
+  "title": "ghcontribs visualization index",
+  "description": "The compact owner and repository index consumed by the ghcontribs visualization. Owners and repositories are emitted in deterministic case-folded name order. Cross-field aggregation and ordering invariants are enforced by the organizer rather than JSON Schema.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "user",
+    "source",
+    "owners"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "user": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The GitHub username whose contributions are represented."
+    },
+    "source": {
+      "$ref": "#/$defs/sourceRange"
+    },
+    "owners": {
+      "type": "array",
+      "description": "GitHub repository owners, which may be organizations or personal accounts.",
+      "items": {
+        "$ref": "#/$defs/ownerSummary"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "month": {
+      "type": "string",
+      "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$",
+      "description": "A UTC calendar month in YYYY-MM form."
+    },
+    "counts": {
+      "type": "object",
+      "required": [
+        "issues",
+        "pull_requests",
+        "reviews",
+        "comments"
+      ],
+      "properties": {
+        "issues": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pull_requests": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reviews": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "comments": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "sourceRange": {
+      "type": "object",
+      "description": "The inclusive range of source archive filenames. Chronological ordering is enforced by the organizer.",
+      "required": [
+        "first_month",
+        "last_month"
+      ],
+      "properties": {
+        "first_month": {
+          "$ref": "#/$defs/month"
+        },
+        "last_month": {
+          "$ref": "#/$defs/month"
+        }
+      },
+      "additionalProperties": false
+    },
+    "repositoryContributions": {
+      "type": "object",
+      "required": [
+        "total",
+        "by_month"
+      ],
+      "properties": {
+        "total": {
+          "$ref": "#/$defs/counts",
+          "description": "Counts across all source months. Equality to the sum of by_month is enforced by the organizer."
+        },
+        "by_month": {
+          "type": "object",
+          "description": "Counts for represented months. A missing month is interpreted as four zero counts.",
+          "propertyNames": {
+            "$ref": "#/$defs/month"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/counts"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "repositorySummary": {
+      "type": "object",
+      "required": [
+        "key",
+        "name",
+        "contributions"
+      ],
+      "properties": {
+        "key": {
+          "type": "string",
+          "pattern": "^[^/]+/[^/]+$",
+          "description": "The stable repository identifier, exactly owner/name. Equality to the surrounding owner and name is enforced by the organizer."
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Repository name with source casing preserved."
+        },
+        "contributions": {
+          "$ref": "#/$defs/repositoryContributions"
+        }
+      },
+      "additionalProperties": false
+    },
+    "ownerSummary": {
+      "type": "object",
+      "required": [
+        "owner",
+        "repositories"
+      ],
+      "properties": {
+        "owner": {
+          "type": "string",
+          "minLength": 1,
+          "description": "GitHub repository owner with source casing preserved."
+        },
+        "repositories": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/repositorySummary"
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

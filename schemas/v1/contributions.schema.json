@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/dwhswenson/ghcontribs/main/schemas/v1/contributions.schema.json",
+  "title": "ghcontribs monthly contributions",
+  "description": "A monthly JSON dump of GitHub issues, pull requests, pull request reviews, and issue comments.",
+  "type": "array",
+  "items": {
+    "$ref": "#/$defs/contribution"
+  },
+  "$defs": {
+    "contribution": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/issue"
+        },
+        {
+          "$ref": "#/$defs/pullRequest"
+        },
+        {
+          "$ref": "#/$defs/pullRequestReview"
+        },
+        {
+          "$ref": "#/$defs/issueComment"
+        }
+      ]
+    },
+    "issue": {
+      "title": "Issue contribution",
+      "type": "object",
+      "required": [
+        "url",
+        "created",
+        "contrib_type",
+        "owner",
+        "repo",
+        "number",
+        "title"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "contrib_type": {
+          "const": "issue"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "pullRequest": {
+      "title": "Pull request contribution",
+      "type": "object",
+      "required": [
+        "url",
+        "created",
+        "contrib_type",
+        "owner",
+        "repo",
+        "number",
+        "title",
+        "merged",
+        "closes"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "contrib_type": {
+          "const": "pullRequest"
+        },
+        "owner": {
+          "type": "string",
+          "minLength": 1
+        },
+        "repo": {
+          "type": "string",
+          "minLength": 1
+        },
+        "number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "title": {
+          "type": "string"
+        },
+        "merged": {
+          "type": "boolean"
+        },
+        "closes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/issue"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "pullRequestReview": {
+      "title": "Pull request review contribution",
+      "type": "object",
+      "required": [
+        "url",
+        "created",
+        "contrib_type",
+        "pr"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "contrib_type": {
+          "const": "pullRequestReview"
+        },
+        "pr": {
+          "$ref": "#/$defs/pullRequest"
+        }
+      },
+      "additionalProperties": false
+    },
+    "issueComment": {
+      "title": "Issue comment contribution",
+      "type": "object",
+      "required": [
+        "url",
+        "created",
+        "contrib_type",
+        "issue_or_pr"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        },
+        "created": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "contrib_type": {
+          "const": "issueComment"
+        },
+        "issue_or_pr": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/issue"
+            },
+            {
+              "$ref": "#/$defs/pullRequest"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
