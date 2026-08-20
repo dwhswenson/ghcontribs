@@ -1,68 +1,59 @@
 import json
 import typing
-from ghcontribs.contrib import GitHubContrib
+
+from .contrib import Contribution
+
 
 FILELIKE_OR_FILENAME = typing.Union[typing.TextIO, str]
+_CONTRIBUTION_KEYS = {'contrib_type', 'created', 'url'}
 
 
-class _GitHubContribJSONEncoder(json.JSONEncoder):
-    """Custom encoder for GitHubContrib objects"""
+class _ContributionJSONEncoder(json.JSONEncoder):
+    """Encode rich contribution objects as JSON dictionaries."""
+
     def default(self, obj):
-        if isinstance(obj, GitHubContrib):
+        if isinstance(obj, Contribution):
             return obj.to_dict()
         return super().default(obj)
 
 
-class _GitHubContribJSONDecoder(json.JSONDecoder):
-    """Custom decoder for GitHubContrib objects"""
-    # __dataclass_fields__ is dirty trick to facilitate upkeep
-    GH_CONTRIB_KEYS = set(GitHubContrib.__dataclass_fields__.keys())
-    def __init__(self, *args, **kwargs):
-        json.JSONDecoder.__init__(self, object_hook=self.object_hook, *args,
-                                  **kwargs)
+def _decode_contributions(value):
+    """Recursively reconstruct contributions in a decoded JSON value."""
+    if isinstance(value, list):
+        return [_decode_contributions(item) for item in value]
+    if isinstance(value, dict):
+        if _CONTRIBUTION_KEYS <= value.keys():
+            return Contribution.from_dict(value)
+        return {
+            key: _decode_contributions(item)
+            for key, item in value.items()
+        }
+    return value
 
-    def object_hook(self, dct):
-        if isinstance(dct, dict) and set(dct.keys()) == self.GH_CONTRIB_KEYS:
-            return GitHubContrib.from_dict(dct)
-        return dct
+
+class _ContributionJSONDecoder(json.JSONDecoder):
+    """Decode rich contribution dictionaries without losing nested data."""
+
+    def decode(self, string, **kwargs):
+        value = super().decode(string, **kwargs)
+        return _decode_contributions(value)
 
 
 def _write_json(filelike, contrib_list):
-    json_str = json.dumps(contrib_list, cls=_GitHubContribJSONEncoder)
+    json_str = json.dumps(contrib_list, cls=_ContributionJSONEncoder)
     filelike.write(json_str)
 
 
 def write_json_file(filename: str, contrib_list):
-    # TODO: typing on contrib_list -- maybe don't regularize to list
-    """Output the contribution list to a JSON file.
-
-    Parameters
-    ----------
-    filename :
-        the name of the file to write to
-    """
-    # regularize to list in case client didn't
-    if isinstance(contrib_list, GitHubContrib):
+    """Output contributions to a JSON file."""
+    if isinstance(contrib_list, Contribution):
         contrib_list = [contrib_list]
 
-    # TODO: support whether filename is filename of filelike
-    with open(filename, mode='w') as f:
-        _write_json(f, contrib_list)
+    with open(filename, mode='w', encoding='utf-8') as file_handle:
+        _write_json(file_handle, contrib_list)
 
 
 def load_json_file(filename: str) -> typing.Any:
-    """Load a contribution list from a JSON file
-
-    Parameters
-    ----------
-    filename :
-        the name of the JSON file to load
-
-    Returns
-    -------
-    Any :
-        representation of the JSON file
-    """
-    with open(filename, mode='r') as f:
-        contribs = json.loads(f.read(), cls=_GitHubContribJSONDecoder)
-    return contribs
+    """Load a JSON file, reconstructing any rich contributions it contains."""
+    with open(filename, mode='r', encoding='utf-8') as file_handle:
+        return json.load(file_handle, cls=_ContributionJSONDecoder)

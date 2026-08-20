@@ -1,155 +1,233 @@
-"""
-Data structures used to represent GitHub contributions in this repository.
-
-Much of the in this repo involves are getting things into these data
-structures or using objects in these data structures to output something
-interesting.
-"""
-
 import dataclasses
-import enum
-import typing
-
-class ContribTypeInfo(typing.NamedTuple):
-    """Used as the value for the ContribType enum.
-
-    Parameters
-    ----------
-    name :
-        name of this contribution type; note related to the GitHub API
-    url_name :
-        addition to URL for this contribution type ('pull' or 'issue')
-    node_name :
-        label for this kind of node in the JSON output
-    contrib_name :
-    by_repo_name :
-        label for this type of contribution when loading contributions by
-        repository
-    """
-    name: str
-    url_name: str
-    node_name: str
-    contrib_name: str
-    by_repo_name: str
+from datetime import datetime
+from typing import ClassVar
 
 
-@enum.unique
-class ContribType(enum.Enum):
-    """Enumeration for GitHub contribution types.
+def parse_date(date):
+    return datetime.fromisoformat(date)
 
-    Note that the enumeration values are mapped to a
-    :class:`.ContribTypeInfo`, which contains further information about that
-    type.
 
-    .. note::
+@dataclasses.dataclass(frozen=True)
+class Contribution:
+    created: datetime
+    url: str
+    contrib_type: ClassVar[str] = ""
+    _query_date_field: ClassVar[str] = "createdAt"
 
-        This class contains methods ``serialize`` and ``deserialize``, which
-        for some reason aren't currently being found by Sphinx (to generate
-        online documentation).
-    """
-    PULL = ContribTypeInfo(
-        name="pull",
-        url_name="pull",
-        node_name="pullRequest",
-        contrib_name="pullRequestContributions",
-        by_repo_name="pullRequestContributionsByRepository",
-    )
-    """value for pull request contribution"""
+    def __post_init__(self):
+        if not isinstance(self.created, datetime):
+            raise TypeError("created must be a datetime")
+        if self.created.tzinfo is None or self.created.utcoffset() is None:
+            raise ValueError("created must be timezone-aware")
 
-    ISSUE = ContribTypeInfo(
-        name="issue",
-        url_name="issues",
-        node_name="issue",
-        contrib_name="issueContributions",
-        by_repo_name="issueContributionsByRepository",
-    )
-    """value for issue contribution"""
+    def _sort_key(self):
+        return (self.created, self.url, self.contrib_type)
 
-    def __repr__(self):
-        return f"<{self.__class__.__name__}.{self.name}>"
-
-    def serialize(self) -> str:
-        """Serialization of this type for JSON.
-
-        Returns
-        -------
-        str :
-            string representation of this contribution type ('pull' or
-            'issue')
-        """
-        return self.name
+    def __lt__(self, other):
+        if not isinstance(other, Contribution):
+            return NotImplemented
+        return self._sort_key() < other._sort_key()
 
     @classmethod
-    def deserialize(cls, name: str):
-        """Construct from JSON-serialized string
+    def _query_node_to_input_dict(cls, node):
+        return {
+            'url': node['url'],
+            'created': parse_date(node[cls._query_date_field]),
+        }
 
-        Parameters
-        ----------
-        name : str
-            string representation of the desired contribution type ('pull'
-            or 'issue')
-        """
-        return cls[name]
+    @classmethod
+    def _from_dict_params(cls, dct):
+        if dct['contrib_type'] != cls.contrib_type:
+            raise ValueError(
+                f"Cannot deserialize {dct['contrib_type']!r} as "
+                f"{cls.contrib_type!r}"
+            )
 
+        return {
+            'url': dct['url'],
+            'created': parse_date(dct['created']),
+        }
 
-@dataclasses.dataclass
-class GitHubContrib:
-    """Representation of a single contribution on GitHub.
-
-    Parameters
-    ----------
-    owner :
-        the organization or username owner of the repository
-    repo :
-        the name of the repository
-    number :
-        the issue or PR number associated with the contribution
-    contrib_type : :class:`.ContribType`
-        the type of contribution
-    """
-    owner: str
-    repo: str
-    number: int
-    contrib_type: ContribType
-
-    @property
-    def url(self) -> str:
-        """URL for this contribution"""
-        return (f"https://github.com/{self.owner}/{self.repo}/"
-                f"{self.contrib_type.value.url_name}/{self.number}")
-
-    @property
-    def github_shortname(self) -> str:
-        """string used in GitHub to refer to this contributions"""
-        return f"{self.owner}/{self.repo}#{self.number}"
+    @classmethod
+    def from_query_node(cls, node):
+        dct = cls._query_node_to_input_dict(node)
+        return cls(**dct)
 
     def to_dict(self):
-        """Convert this to a dict suitable for JSON serialization
-
-        Returns
-        -------
-        dict :
-            dict representation of this object
-        """
-        dct = dataclasses.asdict(self)
-        dct['contrib_type'] = dct['contrib_type'].serialize()
-        return dct
+        return {
+            'url': self.url,
+            'created': self.created.isoformat(),
+            'contrib_type': self.contrib_type,
+        }
 
     @classmethod
     def from_dict(cls, dct):
-        """Create instance from a dict representation.
+        if cls is Contribution:
+            contrib_type = dct['contrib_type']
+            try:
+                contrib_cls = _CONTRIBUTION_TYPES[contrib_type]
+            except KeyError:
+                raise ValueError(
+                    f"Unknown contribution type: {contrib_type!r}"
+                ) from None
+            return contrib_cls.from_dict(dct)
+        return cls(**cls._from_dict_params(dct))
 
-        Parameters
-        ----------
-        dct : dict
-            dict representation of this object; must match output of
-            :meth:`.to_dict`.
 
-        Returns
-        -------
-        :class:`.GitHubContrib` :
-            constructed object
-        """
-        dct = dict(dct)  # make a copy before modification
-        dct['contrib_type'] = ContribType.deserialize(dct['contrib_type'])
-        return cls(**dct)
+@dataclasses.dataclass(frozen=True)
+class Issue(Contribution):
+    owner: str
+    repo: str
+    number: int
+    title: str
+    contrib_type: ClassVar[str] = "issue"
+
+    def to_dict(self):
+        dct = super().to_dict()
+        dct.update({
+            'owner': self.owner,
+            'repo': self.repo,
+            'number': self.number,
+            'title': self.title,
+        })
+        return dct
+
+    @classmethod
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
+        params.update({
+            'owner': dct['owner'],
+            'repo': dct['repo'],
+            'number': dct['number'],
+            'title': dct['title'],
+        })
+        return params
+
+    @classmethod
+    def _query_node_to_input_dict(cls, node):
+        dct = super()._query_node_to_input_dict(node)
+        dct.update({
+            'owner': node['repository']['owner']['login'],
+            'repo': node['repository']['name'],
+            'number': node['number'],
+            'title': node['title'],
+        })
+        return dct
+
+
+@dataclasses.dataclass(frozen=True)
+class PullRequest(Issue):
+    merged: bool
+    closes: tuple[Issue, ...]
+    contrib_type: ClassVar[str] = "pullRequest"
+
+    def __post_init__(self):
+        super().__post_init__()
+        object.__setattr__(self, 'closes', tuple(self.closes))
+
+    def to_dict(self):
+        dct = super().to_dict()
+        dct.update({
+            'merged': self.merged,
+            'closes': [iss.to_dict() for iss in self.closes],
+        })
+        return dct
+
+    @classmethod
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
+        params['merged'] = dct['merged']
+        params['closes'] = tuple(
+            Issue.from_dict(issue) for issue in dct['closes']
+        )
+        return params
+
+    @classmethod
+    def _query_node_to_input_dict(cls, node):
+        dct = super()._query_node_to_input_dict(node)
+        dct.update({
+            'closes': tuple(
+                Issue.from_query_node(edge['node'])
+                for edge in node['closingIssuesReferences']['edges']
+                if edge is not None and edge.get('node') is not None
+            ),
+            'merged': node['merged']
+        })
+        return dct
+
+
+@dataclasses.dataclass(frozen=True)
+class Review(Contribution):
+    pr: PullRequest
+    contrib_type: ClassVar[str] = "pullRequestReview"
+    _query_date_field: ClassVar[str] = "submittedAt"
+
+    @property
+    def owner(self):
+        return self.pr.owner
+
+    @property
+    def repo(self):
+        return self.pr.repo
+
+    def to_dict(self):
+        dct = super().to_dict()
+        dct['pr'] = self.pr.to_dict()
+        return dct
+
+    @classmethod
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
+        params['pr'] = PullRequest.from_dict(dct['pr'])
+        return params
+
+    @classmethod
+    def _query_node_to_input_dict(cls, node):
+        dct = super()._query_node_to_input_dict(node)
+        dct['pr'] = PullRequest.from_query_node(node['pullRequest'])
+        return dct
+
+
+@dataclasses.dataclass(frozen=True)
+class Comment(Contribution):
+    issue_or_pr: Issue | PullRequest
+    contrib_type: ClassVar[str] = "issueComment"
+
+    @property
+    def owner(self):
+        return self.issue_or_pr.owner
+
+    @property
+    def repo(self):
+        return self.issue_or_pr.repo
+
+    def to_dict(self):
+        dct = super().to_dict()
+        dct['issue_or_pr'] = self.issue_or_pr.to_dict()
+        return dct
+
+    @classmethod
+    def _from_dict_params(cls, dct):
+        params = super()._from_dict_params(dct)
+        issue_or_pr = Contribution.from_dict(dct['issue_or_pr'])
+        if not isinstance(issue_or_pr, Issue):
+            raise ValueError("A comment target must be an issue or pull request")
+        params['issue_or_pr'] = issue_or_pr
+        return params
+
+    @classmethod
+    def _query_node_to_input_dict(cls, node):
+        dct = super()._query_node_to_input_dict(node)
+        pull_request = node.get('pullRequest')
+        if pull_request is not None:
+            issue_or_pr = PullRequest.from_query_node(pull_request)
+        else:
+            issue_or_pr = Issue.from_query_node(node['issue'])
+        dct['issue_or_pr'] = issue_or_pr
+        return dct
+
+
+_CONTRIBUTION_TYPES = {
+    contrib_cls.contrib_type: contrib_cls
+    for contrib_cls in (Issue, PullRequest, Review, Comment)
+}

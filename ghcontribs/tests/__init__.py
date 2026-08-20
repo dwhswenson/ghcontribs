@@ -1,1 +1,1 @@
-from . import utils
+"""Test suite for ghcontribs."""

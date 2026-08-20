@@ -12,7 +12,12 @@ python = ">=3.11"
 requests = "*"
 pytest = "*"
 pytest-cov = "*"
+jsonschema-with-format-nongpl = "*"
+wheel = "*"
 jupyterlab = "*"
+
+# for the visualization
+nodejs = "*"
 
 [pypi-dependencies]
 ghcontribs = { path = ".", editable = true }

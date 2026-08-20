@@ -6,6 +6,18 @@
 
 Generate information about all GitHub contributions for a given user.
 
+The package records issues, pull requests, reviews, and issue comments as rich
+Python objects that can be serialized to JSON. To create a UTC monthly archive,
+run:
+
+```bash
+python -m ghcontribs.monthly USERNAME --output-directory contributions
+```
+
+Pass a personal access token with `--token` or set `GHCONTRIBS_TOKEN`. The
+exporter creates one `YYYY-MM.json` file per month, including empty arrays for
+months without contributions and stopping at the current UTC month.
+
 This was developed out of a desire to create a more detailed view of my own
 contributions to open-source software, including tracking where I've
 contributed PRs and where I've contributed bug report issues.

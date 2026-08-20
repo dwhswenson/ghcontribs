@@ -1,17 +1,18 @@
+import copy
 import dataclasses
 from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 import pytest
 
-from ghcontribs.new_contribs import (
+from ghcontribs.contrib import (
     Comment,
     Contribution,
     Issue,
     PullRequest,
     Review,
 )
-from ghcontribs.contribs_query import (
+from ghcontribs.get_contribs import (
     get_comments,
     get_contributions,
     make_query,
@@ -262,6 +263,18 @@ def test_pull_request_from_query_node(pr_query_node):
     assert isinstance(pr.closes, tuple)
 
 
+def test_pull_request_ignores_null_closing_issue_edges_and_nodes(pr_query_node):
+    pr_query_node['closingIssuesReferences']['edges'].extend([
+        None,
+        {'node': None},
+    ])
+
+    pr = PullRequest.from_query_node(pr_query_node)
+
+    assert len(pr.closes) == 1
+    assert pr.closes[0].number == 1
+
+
 def test_review_from_query_node(pr_query_node):
     node = {
         'submittedAt': '2024-01-03T12:00:00Z',
@@ -495,7 +508,7 @@ def test_get_contributions_paginates_connections_independently(
     ]
 
     with patch(
-        'ghcontribs.contribs_query.execute_query',
+        'ghcontribs.get_contribs.execute_query',
         side_effect=responses,
     ) as mock_execute_query:
         contributions = get_contributions(
@@ -541,6 +554,98 @@ def test_get_contributions_paginates_connections_independently(
     assert 'pullRequestReviewContributions' not in second_query
     for response in responses:
         response.raise_for_status.assert_called_once_with()
+
+
+@pytest.mark.parametrize(
+    'selection,connection,node_name,timestamp_field',
+    [
+        ('issues', 'issueContributions', 'issue', 'createdAt'),
+        (
+            'pull_requests',
+            'pullRequestContributions',
+            'pullRequest',
+            'createdAt',
+        ),
+        (
+            'reviews',
+            'pullRequestReviewContributions',
+            'pullRequestReview',
+            'submittedAt',
+        ),
+    ],
+)
+def test_get_contributions_pads_collection_and_filters_exact_range(
+    issue_query_node,
+    pr_query_node,
+    selection,
+    connection,
+    node_name,
+    timestamp_field,
+):
+    if selection == 'issues':
+        base_node = issue_query_node
+    elif selection == 'pull_requests':
+        base_node = pr_query_node
+    else:
+        base_node = {
+            'submittedAt': '2024-01-15T12:00:00Z',
+            'url': f"{pr_query_node['url']}#pullrequestreview-1",
+            'pullRequest': pr_query_node,
+        }
+
+    nodes = []
+    for index, created in enumerate(
+        (
+            '2023-12-31T23:30:00Z',
+            '2024-01-01T00:00:00Z',
+            '2024-02-01T00:00:00Z',
+            '2024-02-01T00:30:00Z',
+        ),
+    ):
+        node = copy.deepcopy(base_node)
+        node[timestamp_field] = created
+        node['url'] = f'https://github.com/org/repo/contribution/{index}'
+        if 'number' in node:
+            node['number'] = index + 1
+        nodes.append(node)
+
+    response = make_contributions_response({
+        connection: make_connection(
+            nodes,
+            node_name,
+            has_next_page=False,
+            end_cursor=None,
+        ),
+    })
+    selections = {
+        'issues': False,
+        'pull_requests': False,
+        'reviews': False,
+        'comments': False,
+    }
+    selections[selection] = True
+    with patch(
+        'ghcontribs.get_contribs.execute_query',
+        return_value=response,
+    ) as mock_execute_query:
+        contributions = get_contributions(
+            user='octocat',
+            start=datetime(2024, 1, 1, tzinfo=UTC),
+            end=datetime(2024, 2, 1, tzinfo=UTC),
+            auth=('octocat', 'token'),
+            **selections,
+        )
+
+    assert [contribution.created for contribution in contributions] == [
+        datetime(2024, 1, 1, tzinfo=UTC),
+        datetime(2024, 2, 1, tzinfo=UTC),
+    ]
+    query = mock_execute_query.call_args.args[0]
+    assert (
+        'contributionsCollection('
+        'from: "2023-12-31T00:00:00+00:00", '
+        'to: "2024-02-02T00:00:00+00:00")'
+    ) in query
 
 
 def make_comment_query_node(issue_query_node, created, number):
@@ -611,7 +716,7 @@ def test_get_comments_paginates_filters_and_sorts(issue_query_node):
     ]
 
     with patch(
-        'ghcontribs.contribs_query.execute_query',
+        'ghcontribs.get_contribs.execute_query',
         side_effect=responses,
     ) as mock_execute_query:
         comments = get_comments(
@@ -690,7 +795,7 @@ def test_get_comments_requires_cursor_for_another_page(issue_query_node):
         end_cursor=None,
     )
 
-    with patch('ghcontribs.contribs_query.execute_query', return_value=response):
+    with patch('ghcontribs.get_contribs.execute_query', return_value=response):
         with pytest.raises(ValueError, match='Missing new end cursor'):
             get_comments(
                 'octocat',
