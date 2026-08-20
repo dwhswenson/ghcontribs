@@ -1,7 +1,7 @@
 import json
 import string
 import textwrap
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from .contrib import Comment, Issue, PullRequest, Review
 from .query import GH_API_ENDPOINT, query as execute_query
@@ -134,6 +134,8 @@ _PAGE_SPECS = {
     'comments': ('issueComments', None, Comment, 'COMMENT_AFTER'),
 }
 
+_CONTRIBUTION_COLLECTION_PADDING = timedelta(days=1)
+
 
 def make_query(issues, pull_requests, reviews, comments):
     contribs = ""
@@ -194,6 +196,12 @@ def get_contributions(
     if not 1 <= page_size <= 100:
         raise ValueError("page_size must be between 1 and 100")
 
+    # GitHub aligns ContributionsCollection boundaries with the user's
+    # contribution-calendar timezone. Query a wider collection, then enforce
+    # this function's exact timestamp range on every returned contribution.
+    collection_start = start - _CONTRIBUTION_COLLECTION_PADDING
+    collection_end = end + _CONTRIBUTION_COLLECTION_PADDING
+
     selected = {
         'issues': issues,
         'pull_requests': pull_requests,
@@ -211,8 +219,8 @@ def get_contributions(
         })
         substitutions = {
             'USER': user,
-            'START': start.isoformat(),
-            'END': end.isoformat(),
+            'START': collection_start.isoformat(),
+            'END': collection_end.isoformat(),
             'NUM': page_size,
             'COMMENT_NUM': page_size,
         }
@@ -241,7 +249,7 @@ def get_contributions(
                 if node_name is not None:
                     node = node[node_name]
                 contribution = contribution_cls.from_query_node(node)
-                if name != 'comments' or start <= contribution.created <= end:
+                if start <= contribution.created <= end:
                     contributions.append(contribution)
 
             page_info = connection['pageInfo']

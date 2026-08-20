@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from . import json_utils, query
 from .contrib import Contribution
-from .get_contribs import get_contributions
+from .get_contribs import get_comments, get_contributions
 
 
 def first_next_month(date: datetime) -> datetime:
@@ -55,11 +55,13 @@ def get_monthly_contribs(
     year: int,
     month: int,
     auth: query.AUTH_TYPE,
+    *,
+    comments: bool = True,
 ) -> tuple[Contribution, ...]:
     """Get a user's contributions for a UTC calendar month."""
     start = datetime(year, month, 1, tzinfo=timezone.utc)
     end = first_next_month(start) - timedelta(microseconds=1)
-    return get_contributions(user, start, end, auth)
+    return get_contributions(user, start, end, auth, comments=comments)
 
 
 def _current_utc_datetime() -> datetime:
@@ -90,8 +92,44 @@ def write_all_contrib_files(
 
     user_years = get_user_years(user, auth)
     current = _current_utc_datetime()
-    for month, year in _month_year_generator(user_years, current=current):
-        contribs = get_monthly_contribs(user, year, month, auth)
+    months = list(_month_year_generator(user_years, current=current))
+    if not months:
+        return
+
+    first_month, first_year = months[0]
+    last_month, last_year = months[-1]
+    comment_start = datetime(
+        first_year,
+        first_month,
+        1,
+        tzinfo=timezone.utc,
+    )
+    comment_end = first_next_month(datetime(
+        last_year,
+        last_month,
+        1,
+        tzinfo=timezone.utc,
+    )) - timedelta(microseconds=1)
+    comments = get_comments(user, comment_start, comment_end, auth)
+    comments_by_month: dict[tuple[int, int], list[Contribution]] = {}
+    for comment in comments:
+        created_utc = comment.created.astimezone(timezone.utc)
+        comments_by_month.setdefault(
+            (created_utc.month, created_utc.year),
+            [],
+        ).append(comment)
+
+    for month, year in months:
+        monthly = get_monthly_contribs(
+            user,
+            year,
+            month,
+            auth,
+            comments=False,
+        )
+        contribs = tuple(sorted(
+            (*monthly, *comments_by_month.get((month, year), ()))
+        ))
         filename = directory_path / f'{year}-{month:02}.json'
         json_utils.write_json_file(filename, contribs)
 

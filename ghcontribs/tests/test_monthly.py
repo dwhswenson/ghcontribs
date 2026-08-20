@@ -1,5 +1,7 @@
 import json
-from datetime import datetime, timezone
+import subprocess
+import sys
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, patch
 
 import pytest
@@ -106,7 +108,24 @@ def test_get_monthly_contribs_uses_inclusive_month_bounds():
         datetime(2024, 2, 1, tzinfo=UTC),
         datetime(2024, 2, 29, 23, 59, 59, 999999, tzinfo=UTC),
         ('user', 'token'),
+        comments=True,
     )
+
+
+def test_get_monthly_contribs_can_exclude_comments():
+    with patch(
+        'ghcontribs.monthly.get_contributions',
+        return_value=(),
+    ) as get_contributions:
+        get_monthly_contribs(
+            'octocat',
+            2024,
+            2,
+            ('user', 'token'),
+            comments=False,
+        )
+
+    assert get_contributions.call_args.kwargs == {'comments': False}
 
 
 def test_adjacent_month_ranges_do_not_overlap():
@@ -136,10 +155,15 @@ def test_write_all_contrib_files_includes_empty_months_and_creates_directory(
 ):
     output = tmp_path / 'nested' / 'monthly'
 
-    def monthly(_user, _year, month, _auth):
-        return make_contribs() if month == 5 else ()
+    issue, pull_request, review, comment = make_contribs()
+
+    def monthly(_user, _year, month, _auth, *, comments):
+        assert comments is False
+        return (issue, pull_request, review) if month == 5 else ()
 
     with patch('ghcontribs.monthly.get_user_years', return_value=[2026]), patch(
+        'ghcontribs.monthly.get_comments', return_value=(comment,)
+    ) as get_comments, patch(
         'ghcontribs.monthly.get_monthly_contribs', side_effect=monthly
     ), patch(
         'ghcontribs.monthly._current_utc_datetime',
@@ -157,6 +181,53 @@ def test_write_all_contrib_files_includes_empty_months_and_creates_directory(
         'issue', 'pullRequest', 'pullRequestReview', 'issueComment'
     ]
     assert may_data[0]['created'] == '2026-05-10T00:00:00+00:00'
+    get_comments.assert_called_once_with(
+        'octocat',
+        datetime(2026, 1, 1, tzinfo=UTC),
+        datetime(2026, 8, 31, 23, 59, 59, 999999, tzinfo=UTC),
+        ('user', 'token'),
+    )
+
+
+def test_write_all_contrib_files_buckets_comments_by_utc_month(tmp_path):
+    target = make_issue()
+    comment = Comment(
+        created=datetime(
+            2026,
+            6,
+            1,
+            1,
+            tzinfo=timezone(timedelta(hours=2)),
+        ),
+        url=f'{target.url}#issuecomment-5',
+        issue_or_pr=target,
+    )
+    with patch('ghcontribs.monthly.get_user_years', return_value=[2026]), patch(
+        'ghcontribs.monthly.get_comments', return_value=(comment,)
+    ) as get_comments, patch(
+        'ghcontribs.monthly.get_monthly_contribs', return_value=()
+    ) as get_monthly, patch(
+        'ghcontribs.monthly._current_utc_datetime',
+        return_value=datetime(2026, 6, 15, tzinfo=UTC),
+    ):
+        write_all_contrib_files(tmp_path, 'octocat', ('user', 'token'))
+
+    may = json.loads((tmp_path / '2026-05.json').read_text())
+    june = json.loads((tmp_path / '2026-06.json').read_text())
+    assert [record['url'] for record in may] == [comment.url]
+    assert june == []
+    assert get_comments.call_count == 1
+    assert get_monthly.call_count == 6
+
+
+def test_write_all_contrib_files_with_no_years_skips_comment_query(tmp_path):
+    with patch('ghcontribs.monthly.get_user_years', return_value=[]), patch(
+        'ghcontribs.monthly.get_comments'
+    ) as get_comments:
+        write_all_contrib_files(tmp_path, 'octocat', ('user', 'token'))
+
+    get_comments.assert_not_called()
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_main_prefers_explicit_token_and_forwards_output_directory():
@@ -195,3 +266,16 @@ def test_main_rejects_missing_token(capsys):
 
     assert exc.value.code == 2
     assert 'missing authorization token' in capsys.readouterr().err
+
+
+def test_module_help_does_not_warn_about_prior_import():
+    result = subprocess.run(
+        [sys.executable, '-W', 'error::RuntimeWarning', '-m',
+         'ghcontribs.monthly', '--help'],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert 'RuntimeWarning' not in result.stderr

@@ -149,6 +149,7 @@ class PullRequest(Issue):
             'closes': tuple(
                 Issue.from_query_node(edge['node'])
                 for edge in node['closingIssuesReferences']['edges']
+                if edge is not None and edge.get('node') is not None
             ),
             'merged': node['merged']
         })
