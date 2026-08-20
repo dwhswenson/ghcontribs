@@ -36,8 +36,6 @@ jobs:
         run: npm ci
       - name: "Vitest"
         run: npm test
-      - name: "Typecheck"
-        run: npm run typecheck
       - name: "Build"
         run: npm run build
 

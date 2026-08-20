@@ -1,5 +1,9 @@
 export type SizeMode = 'contributions' | 'equal'
 
+function unsupportedSizeMode(mode: never): never {
+  throw new RangeError(`Unsupported size mode: ${String(mode)}`)
+}
+
 /**
  * Convert the current contribution-derived activity into a layout weight.
  *
@@ -17,5 +21,7 @@ export function repositoryWeight(
       return activeContributionCount
     case 'equal':
       return 1
+    default:
+      return unsupportedSizeMode(mode)
   }
 }

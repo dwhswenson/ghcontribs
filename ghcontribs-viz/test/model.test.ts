@@ -201,4 +201,10 @@ describe('repositoryWeight', () => {
     expect(repositoryWeight('equal', 12)).toBe(1)
     expect(repositoryWeight('equal', 0)).toBe(1)
   })
+
+  it('rejects an unsupported runtime sizing mode', () => {
+    expect(() => repositoryWeight('impact' as never, 12)).toThrow(
+      'Unsupported size mode: impact',
+    )
+  })
 })
