@@ -3,7 +3,7 @@ import { loadVisualizationIndex } from './data/load.ts'
 import { layoutEcosystem } from './layout/treemap.ts'
 import { VisualizationModel } from './model/model.ts'
 import { assertMonth, type MonthRange } from './model/months.ts'
-import type { SizeMode } from './model/weights.ts'
+import type { ContributionWeighting, SizeMode } from './model/weights.ts'
 import {
   renderEcosystem,
   renderLoadError,
@@ -13,6 +13,8 @@ import './style.css'
 
 export interface ContributionEcosystemOptions {
   readonly dataUrl: string | URL
+  readonly ownerContributionWeighting?: ContributionWeighting
+  readonly repositoryContributionWeighting?: ContributionWeighting
 }
 
 export interface ContributionEcosystem {
@@ -20,6 +22,8 @@ export interface ContributionEcosystem {
   setContributionTypes(types: ContributionType[]): void
   setMonthRange(range: MonthRange): void
   setSizeMode(mode: SizeMode): void
+  setOwnerContributionWeighting(weighting: ContributionWeighting): void
+  setRepositoryContributionWeighting(weighting: ContributionWeighting): void
 }
 
 const DEFAULT_LAYOUT_WIDTH = 1200
@@ -44,6 +48,8 @@ export function mountContributionEcosystem(
   let pendingContributionTypes: ContributionType[] | undefined
   let pendingMonthRange: MonthRange | undefined
   let pendingSizeMode: SizeMode | undefined
+  let pendingOwnerWeighting = options.ownerContributionWeighting
+  let pendingRepositoryWeighting = options.repositoryContributionWeighting
   let resizeFrame: number | null = null
 
   const rerender = (): void => {
@@ -76,6 +82,12 @@ export function mountContributionEcosystem(
       }
       if (pendingMonthRange !== undefined) model.setMonthRange(pendingMonthRange)
       if (pendingSizeMode !== undefined) model.setSizeMode(pendingSizeMode)
+      if (pendingOwnerWeighting !== undefined) {
+        model.setOwnerContributionWeighting(pendingOwnerWeighting)
+      }
+      if (pendingRepositoryWeighting !== undefined) {
+        model.setRepositoryContributionWeighting(pendingRepositoryWeighting)
+      }
       rerender()
     })
     .catch((error: unknown) => {
@@ -114,6 +126,20 @@ export function mountContributionEcosystem(
       pendingSizeMode = mode
       if (model !== null) {
         model.setSizeMode(mode)
+        rerender()
+      }
+    },
+    setOwnerContributionWeighting(weighting: ContributionWeighting): void {
+      pendingOwnerWeighting = weighting
+      if (model !== null) {
+        model.setOwnerContributionWeighting(weighting)
+        rerender()
+      }
+    },
+    setRepositoryContributionWeighting(weighting: ContributionWeighting): void {
+      pendingRepositoryWeighting = weighting
+      if (model !== null) {
+        model.setRepositoryContributionWeighting(weighting)
         rerender()
       }
     },

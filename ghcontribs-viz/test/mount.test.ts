@@ -90,6 +90,31 @@ describe('mountContributionEcosystem', () => {
     ).toBe(firstNode)
   })
 
+  it('supports independent built-in and custom weighting through the mount API', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(richerIndex())))
+    const target = document.createElement('div')
+    const controller = mountContributionEcosystem(target, {
+      dataUrl: '/index.json',
+      ownerContributionWeighting: 'log',
+      repositoryContributionWeighting: 'linear',
+    })
+    controller.setRepositoryContributionWeighting(() => 1)
+    await flushPromises()
+
+    const first = target.querySelector<HTMLElement>(
+      '[data-repository-key="ExampleOrg/example"]',
+    )!
+    const second = target.querySelector<HTMLElement>(
+      '[data-repository-key="ExampleOrg/secondary"]',
+    )!
+    expect(first.style.width).toBe(second.style.width)
+
+    controller.setOwnerContributionWeighting('asinh')
+    expect(
+      target.querySelector('[data-repository-key="ExampleOrg/example"]'),
+    ).toBe(first)
+  })
+
   it('measures responsive layout, coalesces resize work, and disconnects cleanly', async () => {
     let width = 1200
     let resizeCallback!: ResizeObserverCallback

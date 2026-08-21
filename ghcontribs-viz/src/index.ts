@@ -19,4 +19,9 @@ export type {
   ContributionEcosystemOptions,
 } from './mount.ts'
 export type { MonthRange } from './model/months.ts'
-export type { SizeMode } from './model/weights.ts'
+export type {
+  ContributionWeightFunction,
+  ContributionWeighting,
+  ContributionWeightingName,
+  SizeMode,
+} from './model/weights.ts'

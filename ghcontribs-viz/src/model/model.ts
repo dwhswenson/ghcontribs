@@ -17,6 +17,7 @@ import {
 } from './months.ts'
 import {
   repositoryWeight,
+  type ContributionWeighting,
   type SizeMode,
 } from './weights.ts'
 
@@ -43,6 +44,8 @@ export interface VisualizationSnapshot {
   readonly contributionTypes: readonly ContributionType[]
   readonly monthRange: MonthRange
   readonly sizeMode: SizeMode
+  readonly ownerContributionWeighting: ContributionWeighting
+  readonly repositoryContributionWeighting: ContributionWeighting
   readonly counts: Readonly<ContributionCounts>
   readonly totalContributions: number
   readonly hasContributions: boolean
@@ -81,6 +84,8 @@ export class VisualizationModel {
   #contributionTypes: readonly ContributionType[]
   #monthRange: MonthRange
   #sizeMode: SizeMode
+  #ownerContributionWeighting: ContributionWeighting
+  #repositoryContributionWeighting: ContributionWeighting
 
   constructor(index: VisualizationIndex) {
     this.#index = index
@@ -88,6 +93,8 @@ export class VisualizationModel {
     this.#contributionTypes = Object.freeze([...CONTRIBUTION_TYPES])
     this.#monthRange = this.#sourceRange
     this.#sizeMode = 'contributions'
+    this.#ownerContributionWeighting = 'sqrt'
+    this.#repositoryContributionWeighting = 'sqrt'
   }
 
   setContributionTypes(types: readonly ContributionType[]): void {
@@ -102,13 +109,23 @@ export class VisualizationModel {
     this.#sizeMode = validateSizeMode(mode)
   }
 
+  setOwnerContributionWeighting(weighting: ContributionWeighting): void {
+    repositoryWeight('contributions', 1, weighting)
+    this.#ownerContributionWeighting = weighting
+  }
+
+  setRepositoryContributionWeighting(weighting: ContributionWeighting): void {
+    repositoryWeight('contributions', 1, weighting)
+    this.#repositoryContributionWeighting = weighting
+  }
+
   getSnapshot(): VisualizationSnapshot {
     const selectedTypes = new Set(this.#contributionTypes)
     let datasetCounts = zeroCounts()
 
     const owners = this.#index.owners.map((owner): OwnerViewModel => {
       let ownerCounts = zeroCounts()
-      let ownerWeight = 0
+      let repositoryWeightTotal = 0
       const repositories = owner.repositories.map(
         (repository): RepositoryViewModel => {
           const counts = repositoryCountsForRange(
@@ -118,9 +135,13 @@ export class VisualizationModel {
             selectedTypes,
           )
           const repositoryTotal = totalCount(counts)
-          const weight = repositoryWeight(this.#sizeMode, repositoryTotal)
+          const weight = repositoryWeight(
+            this.#sizeMode,
+            repositoryTotal,
+            this.#repositoryContributionWeighting,
+          )
           ownerCounts = addCounts(ownerCounts, counts)
-          ownerWeight += weight
+          repositoryWeightTotal += weight
           return Object.freeze({
             key: repository.key,
             owner: owner.owner,
@@ -133,10 +154,18 @@ export class VisualizationModel {
       )
 
       datasetCounts = addCounts(datasetCounts, ownerCounts)
+      const ownerTotal = totalCount(ownerCounts)
+      const ownerWeight = this.#sizeMode === 'equal'
+        ? repositoryWeightTotal
+        : repositoryWeight(
+            'contributions',
+            ownerTotal,
+            this.#ownerContributionWeighting,
+          )
       return Object.freeze({
         owner: owner.owner,
         counts: freezeCounts(ownerCounts),
-        totalContributions: totalCount(ownerCounts),
+        totalContributions: ownerTotal,
         weight: ownerWeight,
         repositories: Object.freeze(repositories),
       })
@@ -149,6 +178,8 @@ export class VisualizationModel {
       contributionTypes: this.#contributionTypes,
       monthRange: this.#monthRange,
       sizeMode: this.#sizeMode,
+      ownerContributionWeighting: this.#ownerContributionWeighting,
+      repositoryContributionWeighting: this.#repositoryContributionWeighting,
       counts: freezeCounts(datasetCounts),
       totalContributions: datasetTotal,
       hasContributions: datasetTotal > 0,

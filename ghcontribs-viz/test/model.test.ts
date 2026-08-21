@@ -58,7 +58,7 @@ function cloneIndex(): VisualizationIndex {
 }
 
 describe('VisualizationModel', () => {
-  it('starts with all contribution types, the source range, and contribution sizing', () => {
+  it('starts with all contribution types, the source range, and square-root sizing', () => {
     const snapshot = new VisualizationModel(cloneIndex()).getSnapshot()
     expect(snapshot.contributionTypes).toEqual([
       'issues',
@@ -68,6 +68,10 @@ describe('VisualizationModel', () => {
     ])
     expect(snapshot.monthRange).toEqual({ from: '2024-01', through: '2024-03' })
     expect(snapshot.sizeMode).toBe('contributions')
+    expect(snapshot.ownerContributionWeighting).toBe('sqrt')
+    expect(snapshot.repositoryContributionWeighting).toBe('sqrt')
+    expect(snapshot.owners[0]?.weight).toBeCloseTo(Math.sqrt(13))
+    expect(snapshot.owners[0]?.repositories[0]?.weight).toBeCloseTo(Math.sqrt(10))
     expect(snapshot.counts).toEqual({
       issues: 4,
       pull_requests: 3,
@@ -149,6 +153,29 @@ describe('VisualizationModel', () => {
     expect(equalSnapshot.owners[1]?.weight).toBe(1)
   })
 
+  it('sizes owners from aggregate counts independently of repository weights', () => {
+    const model = new VisualizationModel(cloneIndex())
+    model.setOwnerContributionWeighting('log')
+    model.setRepositoryContributionWeighting('linear')
+    const ownerCompressed = model.getSnapshot()
+
+    expect(ownerCompressed.owners[0]?.weight).toBeCloseTo(Math.log1p(13))
+    expect(
+      ownerCompressed.owners[0]?.repositories.map((repository) => repository.weight),
+    ).toEqual([10, 3])
+
+    model.setOwnerContributionWeighting('linear')
+    model.setRepositoryContributionWeighting('log')
+    const repositoriesCompressed = model.getSnapshot()
+    expect(repositoriesCompressed.owners[0]?.weight).toBe(13)
+    expect(repositoriesCompressed.owners[0]?.repositories[0]?.weight).toBeCloseTo(
+      Math.log1p(10),
+    )
+    expect(repositoriesCompressed.owners[0]?.repositories[1]?.weight).toBeCloseTo(
+      Math.log1p(3),
+    )
+  })
+
   it('returns deeply frozen snapshots and does not mutate the input index', () => {
     const input = cloneIndex()
     const before = structuredClone(input)
@@ -193,13 +220,31 @@ describe('VisualizationModel', () => {
 
 describe('repositoryWeight', () => {
   it('uses contribution activity only for contribution sizing', () => {
-    expect(repositoryWeight('contributions', 12)).toBe(12)
-    expect(repositoryWeight('contributions', 0)).toBe(0)
+    expect(repositoryWeight('contributions', 12, 'linear')).toBe(12)
+    expect(repositoryWeight('contributions', 0, 'linear')).toBe(0)
   })
 
   it('uses one for equal sizing regardless of activity', () => {
     expect(repositoryWeight('equal', 12)).toBe(1)
     expect(repositoryWeight('equal', 0)).toBe(1)
+  })
+
+  it('supports logarithmic, square-root, and inverse-hyperbolic-sine weighting', () => {
+    expect(repositoryWeight('contributions', 100, 'sqrt')).toBe(10)
+    expect(repositoryWeight('contributions', 100, 'log')).toBeCloseTo(Math.log1p(100))
+    expect(repositoryWeight('contributions', 100, 'asinh')).toBeCloseTo(
+      Math.asinh(100),
+    )
+  })
+
+  it('accepts custom weighting functions and validates their results', () => {
+    expect(repositoryWeight('contributions', 8, (count) => Math.cbrt(count))).toBe(2)
+    expect(() => repositoryWeight('contributions', 8, () => -1)).toThrow(
+      'finite non-negative',
+    )
+    expect(() => repositoryWeight('contributions', 8, () => Number.NaN)).toThrow(
+      'finite non-negative',
+    )
   })
 
   it('rejects an unsupported runtime sizing mode', () => {
