@@ -1,7 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
 import type { VisualizationIndex } from '../src/data/types.ts'
-import { layoutEcosystem, type LayoutRect } from '../src/layout/treemap.ts'
+import {
+  layoutEcosystem,
+  MINIMUM_REPOSITORY_SIZE,
+  type LayoutRect,
+} from '../src/layout/treemap.ts'
 import { VisualizationModel } from '../src/model/model.ts'
 
 const index: VisualizationIndex = {
@@ -149,5 +153,55 @@ describe('layoutEcosystem', () => {
   it('rejects non-positive dimensions', () => {
     const snapshot = new VisualizationModel(structuredClone(index)).getSnapshot()
     expect(() => layoutEcosystem(snapshot, 0, 800)).toThrow('must be positive')
+  })
+
+  it('keeps a dense low-weight layout finite, contained, and non-overlapping', () => {
+    const denseIndex: VisualizationIndex = {
+      schema_version: 1,
+      user: 'octocat',
+      source: { first_month: '2024-01', last_month: '2024-01' },
+      owners: Array.from({ length: 24 }, (_, ownerIndex) => ({
+        owner: `Owner-${ownerIndex.toString().padStart(2, '0')}`,
+        repositories: Array.from({ length: 8 }, (_, repositoryIndex) => ({
+          key: `Owner-${ownerIndex.toString().padStart(2, '0')}/repo-${repositoryIndex}`,
+          name: `repo-${repositoryIndex}`,
+          contributions: {
+            total: {
+              issues: repositoryIndex === 0 ? 1000 : 1,
+              pull_requests: 0,
+              reviews: 0,
+              comments: 0,
+            },
+            by_month: {},
+          },
+        })),
+      })),
+    }
+
+    const layout = layoutEcosystem(
+      new VisualizationModel(denseIndex).getSnapshot(),
+      390,
+      520,
+    )
+
+    for (const owner of layout.owners) {
+      for (const repository of owner.repositories) {
+        expect(contains(owner, repository)).toBe(true)
+        expect(repository.width).toBeGreaterThanOrEqual(MINIMUM_REPOSITORY_SIZE)
+        expect(repository.height).toBeGreaterThanOrEqual(MINIMUM_REPOSITORY_SIZE)
+        expect(
+          [repository.x, repository.y, repository.width, repository.height].every(
+            Number.isFinite,
+          ),
+        ).toBe(true)
+      }
+      for (let left = 0; left < owner.repositories.length; left += 1) {
+        for (let right = left + 1; right < owner.repositories.length; right += 1) {
+          expect(overlaps(owner.repositories[left]!, owner.repositories[right]!)).toBe(
+            false,
+          )
+        }
+      }
+    }
   })
 })

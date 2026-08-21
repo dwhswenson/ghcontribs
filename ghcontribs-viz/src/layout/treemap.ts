@@ -40,6 +40,12 @@ const OWNER_GAP = 8
 const REPOSITORY_GAP = 4
 const OWNER_INSET = 7
 const OWNER_HEADER_HEIGHT = 28
+export const MINIMUM_REPOSITORY_SIZE = 4
+
+interface PartitionOptions {
+  readonly gap: number
+  readonly minimumSize: number
+}
 
 function effectiveWeight(weight: number): number {
   return Math.max(Number.isFinite(weight) ? weight : 0, 1)
@@ -76,7 +82,7 @@ function splitIndex<T>(items: readonly WeightedItem<T>[]): number {
 function partition<T>(
   items: readonly WeightedItem<T>[],
   rect: LayoutRect,
-  gap: number,
+  options: PartitionOptions,
 ): PositionedItem<T>[] {
   if (items.length === 0) return []
   if (items.length === 1) return [{ ...rect, value: items[0]!.value }]
@@ -88,11 +94,14 @@ function partition<T>(
   const totalWeight = items.reduce((sum, item) => sum + item.weight, 0)
   const ratio = firstWeight / totalWeight
   const splitHorizontally = rect.width >= rect.height
-  const available = Math.max(
-    0,
-    (splitHorizontally ? rect.width : rect.height) - gap,
+  const span = splitHorizontally ? rect.width : rect.height
+  const minimum = Math.min(options.minimumSize, span / 2)
+  const gap = Math.min(options.gap, Math.max(0, span - minimum * 2))
+  const available = Math.max(0, span - gap)
+  const firstSize = Math.min(
+    available - minimum,
+    Math.max(minimum, available * ratio),
   )
-  const firstSize = available * ratio
   const secondSize = available - firstSize
 
   const firstRect: LayoutRect = splitHorizontally
@@ -113,14 +122,21 @@ function partition<T>(
       }
 
   return [
-    ...partition(first, firstRect, gap),
-    ...partition(second, secondRect, gap),
+    ...partition(first, firstRect, options),
+    ...partition(second, secondRect, options),
   ]
 }
 
 function repositoryBounds(ownerRect: LayoutRect): LayoutRect {
-  const inner = inset(ownerRect, OWNER_INSET)
-  const header = inner.height >= OWNER_HEADER_HEIGHT * 2 ? OWNER_HEADER_HEIGHT : 0
+  const maximumInset = Math.max(
+    0,
+    (Math.min(ownerRect.width, ownerRect.height) - MINIMUM_REPOSITORY_SIZE) / 2,
+  )
+  const inner = inset(ownerRect, Math.min(OWNER_INSET, maximumInset))
+  const maximumHeader = Math.max(0, inner.height - MINIMUM_REPOSITORY_SIZE)
+  const header = inner.height >= OWNER_HEADER_HEIGHT * 2
+    ? Math.min(OWNER_HEADER_HEIGHT, maximumHeader)
+    : 0
   return {
     x: inner.x,
     y: inner.y + header,
@@ -149,7 +165,10 @@ export function layoutEcosystem(
     ),
   }))
 
-  const positionedOwners = partition(owners, bounds, OWNER_GAP)
+  const positionedOwners = partition(owners, bounds, {
+    gap: OWNER_GAP,
+    minimumSize: MINIMUM_REPOSITORY_SIZE,
+  })
   return Object.freeze({
     width,
     height,
@@ -164,7 +183,10 @@ export function layoutEcosystem(
         const repositories = partition(
           repositoryItems,
           repositoryBounds(positionedOwner),
-          REPOSITORY_GAP,
+          {
+            gap: REPOSITORY_GAP,
+            minimumSize: MINIMUM_REPOSITORY_SIZE,
+          },
         ).map((repository) =>
           Object.freeze({
             x: repository.x,
