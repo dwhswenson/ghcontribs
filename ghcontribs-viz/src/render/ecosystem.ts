@@ -133,6 +133,10 @@ export function renderEcosystem(
         `${repository.key}: ${countsDescription(repository.counts)}`,
       )
       positionWithin(tile, repositoryLayout, ownerLayout)
+      tile.classList.toggle(
+        'ghc-repository--compact',
+        repositoryLayout.width < 32 || repositoryLayout.height < 32,
+      )
 
       const name = tile.querySelector<HTMLElement>(':scope > .ghc-repository__name')!
       name.textContent = repository.name
