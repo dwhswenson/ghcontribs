@@ -22,6 +22,19 @@ export interface ContributionEcosystem {
   setSizeMode(mode: SizeMode): void
 }
 
+const DEFAULT_LAYOUT_WIDTH = 1200
+const MINIMUM_LAYOUT_HEIGHT = 320
+const MAXIMUM_LAYOUT_HEIGHT = 800
+
+function measureLayout(element: HTMLElement): { width: number; height: number } {
+  const measuredWidth = element.getBoundingClientRect().width || element.clientWidth
+  const width = Math.max(1, Math.round(measuredWidth || DEFAULT_LAYOUT_WIDTH))
+  const height = Math.round(
+    Math.min(MAXIMUM_LAYOUT_HEIGHT, Math.max(MINIMUM_LAYOUT_HEIGHT, width * 2 / 3)),
+  )
+  return { width, height }
+}
+
 export function mountContributionEcosystem(
   element: HTMLElement,
   options: ContributionEcosystemOptions,
@@ -31,12 +44,27 @@ export function mountContributionEcosystem(
   let pendingContributionTypes: ContributionType[] | undefined
   let pendingMonthRange: MonthRange | undefined
   let pendingSizeMode: SizeMode | undefined
+  let resizeFrame: number | null = null
 
   const rerender = (): void => {
     if (destroyed || model === null) return
     const snapshot = model.getSnapshot()
-    renderEcosystem(element, snapshot, layoutEcosystem(snapshot))
+    const { width, height } = measureLayout(element)
+    renderEcosystem(element, snapshot, layoutEcosystem(snapshot, width, height))
   }
+
+  const scheduleResize = (): void => {
+    if (destroyed || resizeFrame !== null) return
+    resizeFrame = requestAnimationFrame(() => {
+      resizeFrame = null
+      rerender()
+    })
+  }
+
+  const resizeObserver = typeof ResizeObserver === 'undefined'
+    ? null
+    : new ResizeObserver(scheduleResize)
+  resizeObserver?.observe(element)
 
   renderLoading(element)
   void loadVisualizationIndex(options.dataUrl)
@@ -58,6 +86,9 @@ export function mountContributionEcosystem(
     destroy(): void {
       destroyed = true
       model = null
+      resizeObserver?.disconnect()
+      if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
+      resizeFrame = null
       element.replaceChildren()
     },
     setContributionTypes(types: ContributionType[]): void {

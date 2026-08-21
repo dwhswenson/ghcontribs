@@ -39,6 +39,7 @@ function countList(counts: ContributionCounts): HTMLElement {
     const term = document.createElement('dt')
     term.textContent = short
     const value = document.createElement('dd')
+    value.dataset.count = key
     value.textContent = String(counts[key])
     item.append(term, value)
     list.append(item)
@@ -46,69 +47,112 @@ function countList(counts: ContributionCounts): HTMLElement {
   return list
 }
 
+function updateCountList(list: HTMLElement, counts: ContributionCounts): void {
+  for (const { key } of COUNT_LABELS) {
+    const value = list.querySelector<HTMLElement>(`[data-count="${key}"]`)
+    if (value !== null) value.textContent = String(counts[key])
+  }
+}
+
+function createOwnerElement(ownerName: string): HTMLElement {
+  const owner = document.createElement('section')
+  owner.className = 'ghc-owner'
+  owner.dataset.owner = ownerName
+
+  const name = document.createElement('h2')
+  name.className = 'ghc-owner__name'
+  owner.append(name)
+  return owner
+}
+
+function createRepositoryElement(key: string): HTMLElement {
+  const tile = document.createElement('article')
+  tile.className = 'ghc-repository'
+  tile.dataset.repositoryKey = key
+
+  const name = document.createElement('h3')
+  name.className = 'ghc-repository__name'
+  tile.append(name, countList({ issues: 0, pull_requests: 0, reviews: 0, comments: 0 }))
+  return tile
+}
+
 export function renderEcosystem(
   target: HTMLElement,
   snapshot: VisualizationSnapshot,
   layout: EcosystemLayout,
 ): void {
-  const ecosystem = document.createElement('div')
-  ecosystem.className = 'ghc-ecosystem'
+  let ecosystem = target.querySelector<HTMLElement>(':scope > .ghc-ecosystem')
+  if (ecosystem === null) {
+    ecosystem = document.createElement('div')
+    ecosystem.className = 'ghc-ecosystem'
+    ecosystem.setAttribute('role', 'group')
+    target.replaceChildren(ecosystem)
+  }
   ecosystem.setAttribute('role', 'group')
   ecosystem.setAttribute(
     'aria-label',
     `${snapshot.user}'s GitHub contributions: ${countsDescription(snapshot.counts)}`,
   )
-  ecosystem.style.aspectRatio = `${layout.width} / ${layout.height}`
+  ecosystem.style.height = `${layout.height}px`
   const canvas = { x: 0, y: 0, width: layout.width, height: layout.height }
+  const remainingOwners = new Map(
+    Array.from(ecosystem.querySelectorAll<HTMLElement>(':scope > .ghc-owner')).map(
+      (owner) => [owner.dataset.owner!, owner],
+    ),
+  )
 
   for (const ownerLayout of layout.owners) {
-    const owner = document.createElement('section')
-    owner.className = 'ghc-owner'
-    owner.dataset.owner = ownerLayout.owner.owner
+    const ownerNameText = ownerLayout.owner.owner
+    const owner = remainingOwners.get(ownerNameText) ?? createOwnerElement(ownerNameText)
+    remainingOwners.delete(ownerNameText)
     owner.setAttribute(
       'aria-label',
-      `${ownerLayout.owner.owner}: ${countsDescription(ownerLayout.owner.counts)}`,
+      `${ownerNameText}: ${countsDescription(ownerLayout.owner.counts)}`,
     )
     positionWithin(owner, ownerLayout, canvas)
 
-    const ownerName = document.createElement('h2')
-    ownerName.className = 'ghc-owner__name'
-    ownerName.textContent = ownerLayout.owner.owner
-    if (ownerLayout.width < 72 || ownerLayout.height < 58) {
-      ownerName.classList.add('ghc-visually-hidden')
-    }
-    owner.append(ownerName)
+    const ownerName = owner.querySelector<HTMLElement>(':scope > .ghc-owner__name')!
+    ownerName.textContent = ownerNameText
+    ownerName.classList.toggle(
+      'ghc-visually-hidden',
+      ownerLayout.width < 72 || ownerLayout.height < 58,
+    )
+    const remainingRepositories = new Map(
+      Array.from(
+        owner.querySelectorAll<HTMLElement>(':scope > .ghc-repository'),
+      ).map((repository) => [repository.dataset.repositoryKey!, repository]),
+    )
 
     for (const repositoryLayout of ownerLayout.repositories) {
       const { repository } = repositoryLayout
-      const tile = document.createElement('article')
-      tile.className = 'ghc-repository'
-      tile.dataset.repositoryKey = repository.key
+      const tile = remainingRepositories.get(repository.key) ??
+        createRepositoryElement(repository.key)
+      remainingRepositories.delete(repository.key)
       tile.setAttribute(
         'aria-label',
         `${repository.key}: ${countsDescription(repository.counts)}`,
       )
       positionWithin(tile, repositoryLayout, ownerLayout)
 
-      const name = document.createElement('h3')
-      name.className = 'ghc-repository__name'
+      const name = tile.querySelector<HTMLElement>(':scope > .ghc-repository__name')!
       name.textContent = repository.name
-      if (repositoryLayout.width < 92 || repositoryLayout.height < 45) {
-        name.classList.add('ghc-visually-hidden')
-      }
-      tile.append(name)
+      name.classList.toggle(
+        'ghc-visually-hidden',
+        repositoryLayout.width < 92 || repositoryLayout.height < 45,
+      )
 
-      const counts = countList(repository.counts)
-      if (repositoryLayout.width < 145 || repositoryLayout.height < 82) {
-        counts.classList.add('ghc-visually-hidden')
-      }
-      tile.append(counts)
+      const counts = tile.querySelector<HTMLElement>(':scope > .ghc-counts')!
+      updateCountList(counts, repository.counts)
+      counts.classList.toggle(
+        'ghc-visually-hidden',
+        repositoryLayout.width < 145 || repositoryLayout.height < 82,
+      )
       owner.append(tile)
     }
+    for (const repository of remainingRepositories.values()) repository.remove()
     ecosystem.append(owner)
   }
-
-  target.replaceChildren(ecosystem)
+  for (const owner of remainingOwners.values()) owner.remove()
 }
 
 export function renderLoading(target: HTMLElement): void {
