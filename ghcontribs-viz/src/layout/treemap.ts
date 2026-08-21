@@ -40,9 +40,55 @@ const OWNER_GAP = 8
 const REPOSITORY_GAP = 4
 const OWNER_INSET = 7
 const OWNER_HEADER_HEIGHT = 28
+export const MINIMUM_REPOSITORY_SIZE = 4
+
+interface PartitionOptions {
+  readonly gap: number
+  readonly minimumSize: number
+}
 
 function effectiveWeight(weight: number): number {
-  return Math.max(Number.isFinite(weight) ? weight : 0, 1)
+  return Math.max(Number.isFinite(weight) ? weight : 0, 0)
+}
+
+function allocateMinimumAreas<T>(
+  items: readonly WeightedItem<T>[],
+  rect: LayoutRect,
+  minimumArea: (item: T) => number,
+): WeightedItem<T>[] {
+  if (items.length === 0) return []
+  const availableArea = rect.width * rect.height
+  const requestedFloors = items.map((item) => minimumArea(item.value))
+  const requestedFloorTotal = requestedFloors.reduce((sum, area) => sum + area, 0)
+  const floorScale = requestedFloorTotal > availableArea
+    ? availableArea / requestedFloorTotal
+    : 1
+  const floorAreas = requestedFloors.map((area) => area * floorScale)
+  const remainingArea = Math.max(
+    0,
+    availableArea - floorAreas.reduce((sum, area) => sum + area, 0),
+  )
+  const semanticWeights = items.map((item) => effectiveWeight(item.weight))
+  const maximumSemanticWeight = semanticWeights.reduce(
+    (maximum, weight) => Math.max(maximum, weight),
+    0,
+  )
+  const normalizedSemanticWeights = maximumSemanticWeight > 0
+    ? semanticWeights.map((weight) => weight / maximumSemanticWeight)
+    : semanticWeights
+  const semanticTotal = normalizedSemanticWeights.reduce(
+    (sum, weight) => sum + weight,
+    0,
+  )
+
+  return items.map((item, index) => ({
+    value: item.value,
+    weight: floorAreas[index]! + remainingArea * (
+      semanticTotal > 0
+        ? normalizedSemanticWeights[index]! / semanticTotal
+        : 1 / items.length
+    ),
+  }))
 }
 
 function inset(rect: LayoutRect, amount: number): LayoutRect {
@@ -76,7 +122,7 @@ function splitIndex<T>(items: readonly WeightedItem<T>[]): number {
 function partition<T>(
   items: readonly WeightedItem<T>[],
   rect: LayoutRect,
-  gap: number,
+  options: PartitionOptions,
 ): PositionedItem<T>[] {
   if (items.length === 0) return []
   if (items.length === 1) return [{ ...rect, value: items[0]!.value }]
@@ -88,11 +134,14 @@ function partition<T>(
   const totalWeight = items.reduce((sum, item) => sum + item.weight, 0)
   const ratio = firstWeight / totalWeight
   const splitHorizontally = rect.width >= rect.height
-  const available = Math.max(
-    0,
-    (splitHorizontally ? rect.width : rect.height) - gap,
+  const span = splitHorizontally ? rect.width : rect.height
+  const minimum = Math.min(options.minimumSize, span / 2)
+  const gap = Math.min(options.gap, Math.max(0, span - minimum * 2))
+  const available = Math.max(0, span - gap)
+  const firstSize = Math.min(
+    available - minimum,
+    Math.max(minimum, available * ratio),
   )
-  const firstSize = available * ratio
   const secondSize = available - firstSize
 
   const firstRect: LayoutRect = splitHorizontally
@@ -113,14 +162,21 @@ function partition<T>(
       }
 
   return [
-    ...partition(first, firstRect, gap),
-    ...partition(second, secondRect, gap),
+    ...partition(first, firstRect, options),
+    ...partition(second, secondRect, options),
   ]
 }
 
 function repositoryBounds(ownerRect: LayoutRect): LayoutRect {
-  const inner = inset(ownerRect, OWNER_INSET)
-  const header = inner.height >= OWNER_HEADER_HEIGHT * 2 ? OWNER_HEADER_HEIGHT : 0
+  const maximumInset = Math.max(
+    0,
+    (Math.min(ownerRect.width, ownerRect.height) - MINIMUM_REPOSITORY_SIZE) / 2,
+  )
+  const inner = inset(ownerRect, Math.min(OWNER_INSET, maximumInset))
+  const maximumHeader = Math.max(0, inner.height - MINIMUM_REPOSITORY_SIZE)
+  const header = inner.height >= OWNER_HEADER_HEIGHT * 2
+    ? Math.min(OWNER_HEADER_HEIGHT, maximumHeader)
+    : 0
   return {
     x: inner.x,
     y: inner.y + header,
@@ -134,37 +190,55 @@ export function layoutEcosystem(
   width = 1200,
   height = 800,
 ): EcosystemLayout {
-  if (!(width > 0) || !(height > 0)) {
-    throw new RangeError('Layout width and height must be positive')
+  if (
+    !(width > 0) ||
+    !(height > 0) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height)
+  ) {
+    throw new RangeError('Layout width and height must be positive and finite')
   }
 
-  const bounds = inset({ x: 0, y: 0, width, height }, OUTER_PADDING)
-  const owners = snapshot.owners.map((owner) => ({
+  const outerPadding = Math.min(OUTER_PADDING, width / 4, height / 4)
+  const bounds = inset({ x: 0, y: 0, width, height }, outerPadding)
+  const ownerWeights = snapshot.owners.map((owner) => ({
     value: owner,
-    weight: effectiveWeight(
-      owner.repositories.reduce(
-        (sum, repository) => sum + effectiveWeight(repository.weight),
-        0,
-      ),
-    ),
+    weight: effectiveWeight(owner.weight),
   }))
+  const owners = allocateMinimumAreas(
+    ownerWeights,
+    bounds,
+    (owner) => Math.max(64, owner.repositories.length * 36),
+  )
 
-  const positionedOwners = partition(owners, bounds, OWNER_GAP)
+  const positionedOwners = partition(owners, bounds, {
+    gap: OWNER_GAP,
+    minimumSize: MINIMUM_REPOSITORY_SIZE,
+  })
   return Object.freeze({
     width,
     height,
     owners: Object.freeze(
       positionedOwners.map((positionedOwner): OwnerLayout => {
-        const repositoryItems = positionedOwner.value.repositories.map(
+        const repositoryWeights = positionedOwner.value.repositories.map(
           (repository) => ({
             value: repository,
             weight: effectiveWeight(repository.weight),
           }),
         )
+        const repositoryRect = repositoryBounds(positionedOwner)
+        const repositoryItems = allocateMinimumAreas(
+          repositoryWeights,
+          repositoryRect,
+          () => MINIMUM_REPOSITORY_SIZE ** 2,
+        )
         const repositories = partition(
           repositoryItems,
-          repositoryBounds(positionedOwner),
-          REPOSITORY_GAP,
+          repositoryRect,
+          {
+            gap: REPOSITORY_GAP,
+            minimumSize: MINIMUM_REPOSITORY_SIZE,
+          },
         ).map((repository) =>
           Object.freeze({
             x: repository.x,

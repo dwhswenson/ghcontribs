@@ -8,9 +8,12 @@
 }
 
 .ghc-ecosystem {
+  --ghc-layout-duration: 360ms;
+  --ghc-layout-easing: cubic-bezier(0.22, 1, 0.36, 1);
+
   position: relative;
   width: 100%;
-  min-height: 28rem;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: 1.4rem;
@@ -25,6 +28,13 @@
   position: absolute;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.ghc-ecosystem--layout-ready .ghc-owner,
+.ghc-ecosystem--layout-ready .ghc-repository {
+  transition-duration: var(--ghc-layout-duration);
+  transition-property: left, top, width, height;
+  transition-timing-function: var(--ghc-layout-easing);
 }
 
 .ghc-owner {
@@ -54,8 +64,8 @@
   flex-direction: column;
   justify-content: space-between;
   gap: 0.35rem;
-  min-width: 1px;
-  min-height: 1px;
+  min-width: 0;
+  min-height: 0;
   padding: 0.55rem;
   border: 1px solid rgb(255 255 255 / 13%);
   border-radius: 0.7rem;
@@ -63,6 +73,13 @@
     linear-gradient(145deg, rgb(56 189 248 / 18%), rgb(14 116 144 / 5%)),
     #102a38;
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 8%);
+}
+
+.ghc-repository--compact {
+  gap: 0;
+  padding: 0;
+  border-width: 0;
+  border-radius: min(0.7rem, 25%);
 }
 
 .ghc-repository__name {
@@ -138,4 +155,10 @@
   clip: rect(0, 0, 0, 0) !important;
   white-space: nowrap !important;
   border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghc-ecosystem {
+    --ghc-layout-duration: 0ms;
+  }
 }

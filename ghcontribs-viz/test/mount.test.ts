@@ -49,6 +49,11 @@ describe('mountContributionEcosystem', () => {
     expect(repository?.getAttribute('aria-label')).toContain('1 pull requests')
     expect(repository?.getAttribute('aria-label')).toContain('1 reviews')
     expect(repository?.getAttribute('aria-label')).toContain('1 comments')
+    expect(
+      target.querySelector('.ghc-ecosystem')?.classList.contains(
+        'ghc-ecosystem--layout-ready',
+      ),
+    ).toBe(true)
   })
 
   it('applies pending and loaded controller changes and rerenders geometry', async () => {
@@ -64,6 +69,7 @@ describe('mountContributionEcosystem', () => {
     const second = target.querySelector<HTMLElement>(
       '[data-repository-key="ExampleOrg/secondary"]',
     )!
+    const firstNode = first
     expect(first.style.width).toBe(second.style.width)
 
     controller.setContributionTypes(['comments'])
@@ -79,6 +85,86 @@ describe('mountContributionEcosystem', () => {
         .querySelector('[data-repository-key="ExampleOrg/example"]')
         ?.getAttribute('aria-label'),
     ).toContain('0 comments')
+    expect(
+      target.querySelector('[data-repository-key="ExampleOrg/example"]'),
+    ).toBe(firstNode)
+  })
+
+  it('supports independent built-in and custom weighting through the mount API', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(richerIndex())))
+    const target = document.createElement('div')
+    const controller = mountContributionEcosystem(target, {
+      dataUrl: '/index.json',
+      ownerContributionWeighting: 'log',
+      repositoryContributionWeighting: 'linear',
+    })
+    controller.setRepositoryContributionWeighting(() => 1)
+    await flushPromises()
+
+    const first = target.querySelector<HTMLElement>(
+      '[data-repository-key="ExampleOrg/example"]',
+    )!
+    const second = target.querySelector<HTMLElement>(
+      '[data-repository-key="ExampleOrg/secondary"]',
+    )!
+    expect(first.style.width).toBe(second.style.width)
+
+    controller.setOwnerContributionWeighting('asinh')
+    expect(
+      target.querySelector('[data-repository-key="ExampleOrg/example"]'),
+    ).toBe(first)
+  })
+
+  it('measures responsive layout, coalesces resize work, and disconnects cleanly', async () => {
+    let width = 1200
+    let resizeCallback!: ResizeObserverCallback
+    const observe = vi.fn()
+    const disconnect = vi.fn()
+    class ResizeObserverStub {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback
+      }
+      observe = observe
+      disconnect = disconnect
+      unobserve = vi.fn()
+    }
+    const frames: FrameRequestCallback[] = []
+    vi.stubGlobal('ResizeObserver', ResizeObserverStub)
+    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+      frames.push(callback)
+      return frames.length
+    }))
+    vi.stubGlobal('cancelAnimationFrame', vi.fn())
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(richerIndex())))
+
+    const target = document.createElement('div')
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
+      () => ({ width } as DOMRect),
+    )
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const repository = target.querySelector(
+      '[data-repository-key="ExampleOrg/example"]',
+    )
+    expect(target.querySelector<HTMLElement>('.ghc-ecosystem')?.style.height).toBe(
+      '800px',
+    )
+    expect(observe).toHaveBeenCalledWith(target)
+
+    width = 390
+    resizeCallback([], {} as ResizeObserver)
+    resizeCallback([], {} as ResizeObserver)
+    expect(frames).toHaveLength(1)
+    frames.shift()!(0)
+    expect(target.querySelector<HTMLElement>('.ghc-ecosystem')?.style.height).toBe(
+      '320px',
+    )
+    expect(
+      target.querySelector('[data-repository-key="ExampleOrg/example"]'),
+    ).toBe(repository)
+
+    controller.destroy()
+    expect(disconnect).toHaveBeenCalledOnce()
   })
 
   it('renders an actionable load error', async () => {
