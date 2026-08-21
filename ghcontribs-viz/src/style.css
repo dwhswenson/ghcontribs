@@ -8,6 +8,9 @@
 }
 
 .ghc-ecosystem {
+  --ghc-layout-duration: 360ms;
+  --ghc-layout-easing: cubic-bezier(0.22, 1, 0.36, 1);
+
   position: relative;
   width: 100%;
   min-height: 0;
@@ -25,6 +28,13 @@
   position: absolute;
   box-sizing: border-box;
   overflow: hidden;
+}
+
+.ghc-ecosystem--layout-ready .ghc-owner,
+.ghc-ecosystem--layout-ready .ghc-repository {
+  transition-duration: var(--ghc-layout-duration);
+  transition-property: left, top, width, height;
+  transition-timing-function: var(--ghc-layout-easing);
 }
 
 .ghc-owner {
@@ -138,4 +148,10 @@
   clip: rect(0, 0, 0, 0) !important;
   white-space: nowrap !important;
   border: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ghc-ecosystem {
+    --ghc-layout-duration: 0ms;
+  }
 }

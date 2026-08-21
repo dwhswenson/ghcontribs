@@ -49,6 +49,11 @@ describe('mountContributionEcosystem', () => {
     expect(repository?.getAttribute('aria-label')).toContain('1 pull requests')
     expect(repository?.getAttribute('aria-label')).toContain('1 reviews')
     expect(repository?.getAttribute('aria-label')).toContain('1 comments')
+    expect(
+      target.querySelector('.ghc-ecosystem')?.classList.contains(
+        'ghc-ecosystem--layout-ready',
+      ),
+    ).toBe(true)
   })
 
   it('applies pending and loaded controller changes and rerenders geometry', async () => {

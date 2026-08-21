@@ -153,6 +153,7 @@ export function renderEcosystem(
     ecosystem.append(owner)
   }
   for (const owner of remainingOwners.values()) owner.remove()
+  ecosystem.classList.add('ghc-ecosystem--layout-ready')
 }
 
 export function renderLoading(target: HTMLElement): void {
