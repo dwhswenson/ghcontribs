@@ -48,7 +48,39 @@ interface PartitionOptions {
 }
 
 function effectiveWeight(weight: number): number {
-  return Math.max(Number.isFinite(weight) ? weight : 0, 1)
+  return Math.max(Number.isFinite(weight) ? weight : 0, 0)
+}
+
+function allocateMinimumAreas<T>(
+  items: readonly WeightedItem<T>[],
+  rect: LayoutRect,
+  minimumArea: (item: T) => number,
+): WeightedItem<T>[] {
+  if (items.length === 0) return []
+  const availableArea = rect.width * rect.height
+  const requestedFloors = items.map((item) => minimumArea(item.value))
+  const requestedFloorTotal = requestedFloors.reduce((sum, area) => sum + area, 0)
+  const floorScale = requestedFloorTotal > availableArea
+    ? availableArea / requestedFloorTotal
+    : 1
+  const floorAreas = requestedFloors.map((area) => area * floorScale)
+  const remainingArea = Math.max(
+    0,
+    availableArea - floorAreas.reduce((sum, area) => sum + area, 0),
+  )
+  const semanticTotal = items.reduce(
+    (sum, item) => sum + effectiveWeight(item.weight),
+    0,
+  )
+
+  return items.map((item, index) => ({
+    value: item.value,
+    weight: floorAreas[index]! + remainingArea * (
+      semanticTotal > 0
+        ? effectiveWeight(item.weight) / semanticTotal
+        : 1 / items.length
+    ),
+  }))
 }
 
 function inset(rect: LayoutRect, amount: number): LayoutRect {
@@ -155,15 +187,18 @@ export function layoutEcosystem(
   }
 
   const bounds = inset({ x: 0, y: 0, width, height }, OUTER_PADDING)
-  const owners = snapshot.owners.map((owner) => ({
+  const ownerWeights = snapshot.owners.map((owner) => ({
     value: owner,
-    weight: effectiveWeight(
-      owner.repositories.reduce(
-        (sum, repository) => sum + effectiveWeight(repository.weight),
-        0,
-      ),
+    weight: owner.repositories.reduce(
+      (sum, repository) => sum + effectiveWeight(repository.weight),
+      0,
     ),
   }))
+  const owners = allocateMinimumAreas(
+    ownerWeights,
+    bounds,
+    (owner) => Math.max(64, owner.repositories.length * 36),
+  )
 
   const positionedOwners = partition(owners, bounds, {
     gap: OWNER_GAP,
@@ -174,15 +209,21 @@ export function layoutEcosystem(
     height,
     owners: Object.freeze(
       positionedOwners.map((positionedOwner): OwnerLayout => {
-        const repositoryItems = positionedOwner.value.repositories.map(
+        const repositoryWeights = positionedOwner.value.repositories.map(
           (repository) => ({
             value: repository,
             weight: effectiveWeight(repository.weight),
           }),
         )
+        const repositoryRect = repositoryBounds(positionedOwner)
+        const repositoryItems = allocateMinimumAreas(
+          repositoryWeights,
+          repositoryRect,
+          () => MINIMUM_REPOSITORY_SIZE ** 2,
+        )
         const repositories = partition(
           repositoryItems,
-          repositoryBounds(positionedOwner),
+          repositoryRect,
           {
             gap: REPOSITORY_GAP,
             minimumSize: MINIMUM_REPOSITORY_SIZE,

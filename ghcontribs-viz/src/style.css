@@ -78,6 +78,7 @@
 .ghc-repository--compact {
   gap: 0;
   padding: 0;
+  border-width: 0;
   border-radius: min(0.7rem, 25%);
 }
 
