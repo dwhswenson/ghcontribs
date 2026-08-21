@@ -153,6 +153,48 @@ describe('layoutEcosystem', () => {
   it('rejects non-positive dimensions', () => {
     const snapshot = new VisualizationModel(structuredClone(index)).getSnapshot()
     expect(() => layoutEcosystem(snapshot, 0, 800)).toThrow('must be positive')
+    expect(() => layoutEcosystem(snapshot, Number.POSITIVE_INFINITY, 800)).toThrow(
+      'must be positive and finite',
+    )
+  })
+
+  it.each([
+    [1, 320],
+    [8, 8],
+    [16, 320],
+  ])('keeps geometry finite in a %d by %d mount', (width, height) => {
+    const layout = layoutEcosystem(
+      new VisualizationModel(structuredClone(index)).getSnapshot(),
+      width,
+      height,
+    )
+
+    for (const owner of layout.owners) {
+      expect([owner.x, owner.y, owner.width, owner.height].every(Number.isFinite)).toBe(
+        true,
+      )
+      expect(owner.width).toBeGreaterThan(0)
+      expect(owner.height).toBeGreaterThan(0)
+      for (const repository of owner.repositories) {
+        expect(
+          [repository.x, repository.y, repository.width, repository.height].every(
+            Number.isFinite,
+          ),
+        ).toBe(true)
+        expect(repository.width).toBeGreaterThan(0)
+        expect(repository.height).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('preserves ratios when finite custom weights would overflow their sum', () => {
+    const model = new VisualizationModel(structuredClone(index))
+    model.setRepositoryContributionWeighting(
+      (count) => Number.MAX_VALUE * (count / 8),
+    )
+    const [large, small] = layoutEcosystem(model.getSnapshot()).owners[0]!.repositories
+
+    expect(area(large!)).toBeGreaterThan(area(small!))
   })
 
   it('keeps a dense low-weight layout finite, contained, and non-overlapping', () => {

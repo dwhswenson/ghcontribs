@@ -68,8 +68,16 @@ function allocateMinimumAreas<T>(
     0,
     availableArea - floorAreas.reduce((sum, area) => sum + area, 0),
   )
-  const semanticTotal = items.reduce(
-    (sum, item) => sum + effectiveWeight(item.weight),
+  const semanticWeights = items.map((item) => effectiveWeight(item.weight))
+  const maximumSemanticWeight = semanticWeights.reduce(
+    (maximum, weight) => Math.max(maximum, weight),
+    0,
+  )
+  const normalizedSemanticWeights = maximumSemanticWeight > 0
+    ? semanticWeights.map((weight) => weight / maximumSemanticWeight)
+    : semanticWeights
+  const semanticTotal = normalizedSemanticWeights.reduce(
+    (sum, weight) => sum + weight,
     0,
   )
 
@@ -77,7 +85,7 @@ function allocateMinimumAreas<T>(
     value: item.value,
     weight: floorAreas[index]! + remainingArea * (
       semanticTotal > 0
-        ? effectiveWeight(item.weight) / semanticTotal
+        ? normalizedSemanticWeights[index]! / semanticTotal
         : 1 / items.length
     ),
   }))
@@ -182,11 +190,17 @@ export function layoutEcosystem(
   width = 1200,
   height = 800,
 ): EcosystemLayout {
-  if (!(width > 0) || !(height > 0)) {
-    throw new RangeError('Layout width and height must be positive')
+  if (
+    !(width > 0) ||
+    !(height > 0) ||
+    !Number.isFinite(width) ||
+    !Number.isFinite(height)
+  ) {
+    throw new RangeError('Layout width and height must be positive and finite')
   }
 
-  const bounds = inset({ x: 0, y: 0, width, height }, OUTER_PADDING)
+  const outerPadding = Math.min(OUTER_PADDING, width / 4, height / 4)
+  const bounds = inset({ x: 0, y: 0, width, height }, outerPadding)
   const ownerWeights = snapshot.owners.map((owner) => ({
     value: owner,
     weight: effectiveWeight(owner.weight),
