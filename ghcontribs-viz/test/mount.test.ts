@@ -142,6 +142,7 @@ describe('mountContributionEcosystem', () => {
     )!
 
     expect(firstOwner.tabIndex).toBe(0)
+    expect(firstOwner.getAttribute('aria-expanded')).toBe('false')
     expect(repository.tabIndex).toBe(0)
     firstOwner.focus()
 
@@ -154,12 +155,37 @@ describe('mountContributionEcosystem', () => {
         ?.getAttribute('aria-hidden'),
     ).toBe('true')
     expect(document.activeElement).toBe(firstOwner)
+    expect(firstOwner.getAttribute('aria-expanded')).toBe('true')
 
     firstOwner.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Escape', bubbles: true,
     }))
     expect(target.querySelector<HTMLButtonElement>('.ghc-back')?.hidden).toBe(true)
     expect(document.activeElement).toBe(firstOwner)
+    expect(firstOwner.getAttribute('aria-expanded')).toBe('false')
+  })
+
+  it('keeps compact owner controls visible to keyboard focus', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+    const target = document.createElement('div')
+    vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
+      () => ({ top: 0, width: 16 } as DOMRect),
+    )
+    document.body.append(target)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+
+    const owner = target.querySelector<HTMLButtonElement>(
+      '.ghc-owner__focus[data-owner="ExampleOrg"]',
+    )!
+    const label = owner.querySelector<HTMLElement>('.ghc-owner__label')!
+    expect(label.classList).toContain('ghc-owner__label--hidden')
+    expect(owner.closest('.ghc-owner__name')?.classList).not.toContain(
+      'ghc-visually-hidden',
+    )
+    expect(owner.tabIndex).toBe(0)
+    owner.focus()
+    expect(document.activeElement).toBe(owner)
   })
 
   it('closes a focused owner with Escape after focus leaves the visualization', async () => {

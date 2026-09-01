@@ -68,6 +68,9 @@ function createOwnerElement(ownerName: string): HTMLElement {
   focusControl.dataset.interactionKind = 'owner'
   focusControl.dataset.owner = ownerName
   focusControl.tabIndex = 0
+  const label = document.createElement('span')
+  label.className = 'ghc-owner__label'
+  focusControl.append(label)
   name.append(focusControl)
   owner.append(name)
   return owner
@@ -181,10 +184,14 @@ export function renderEcosystem(
     const ownerFocus = ownerName.querySelector<HTMLButtonElement>(
       ':scope > .ghc-owner__focus',
     )!
-    ownerFocus.textContent = ownerNameText
+    const ownerLabel = ownerFocus.querySelector<HTMLElement>(
+      ':scope > .ghc-owner__label',
+    )!
+    ownerLabel.textContent = ownerNameText
     ownerFocus.setAttribute('aria-label', `Focus ${ownerNameText}`)
-    ownerName.classList.toggle(
-      'ghc-visually-hidden',
+    ownerFocus.setAttribute('aria-expanded', String(isFocusTarget))
+    ownerLabel.classList.toggle(
+      'ghc-owner__label--hidden',
       ownerLayout.width < 72 || ownerLayout.height < 58,
     )
     const remainingRepositories = new Map(

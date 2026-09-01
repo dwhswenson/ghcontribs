@@ -145,6 +145,10 @@
   white-space: nowrap;
 }
 
+.ghc-owner__label--hidden {
+  visibility: hidden;
+}
+
 .ghc-repository {
   display: flex;
   flex-direction: column;
