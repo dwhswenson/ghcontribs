@@ -57,7 +57,6 @@ export class InteractionController {
     target.addEventListener('focusout', this.#handleFocusOut)
     target.addEventListener('keydown', this.#handleKeyDown)
     target.addEventListener('click', this.#handleClick)
-    target.ownerDocument.addEventListener('keydown', this.#handleDocumentKeyDown)
   }
 
   get focusedOwner(): string | null {
@@ -112,7 +111,6 @@ export class InteractionController {
     this.#target.removeEventListener('focusout', this.#handleFocusOut)
     this.#target.removeEventListener('keydown', this.#handleKeyDown)
     this.#target.removeEventListener('click', this.#handleClick)
-    this.#target.ownerDocument.removeEventListener('keydown', this.#handleDocumentKeyDown)
     this.#state.resetTransientTargets()
     this.#snapshot = null
   }
@@ -163,6 +161,12 @@ export class InteractionController {
   }
 
   #handleKeyDown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      if (this.focusedOwner === null) return
+      event.preventDefault()
+      this.focusOwner(null, true)
+      return
+    }
     const current = (event.target as Element | null)?.closest<HTMLElement>(
       '[data-interaction-kind]',
     )
@@ -173,11 +177,5 @@ export class InteractionController {
       this.focusOwner(currentTarget.owner, true)
       return
     }
-  }
-
-  #handleDocumentKeyDown = (event: KeyboardEvent): void => {
-    if (event.key !== 'Escape' || this.focusedOwner === null) return
-    event.preventDefault()
-    this.focusOwner(null, true)
   }
 }

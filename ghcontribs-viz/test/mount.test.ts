@@ -188,29 +188,38 @@ describe('mountContributionEcosystem', () => {
     expect(document.activeElement).toBe(owner)
   })
 
-  it('closes a focused owner with Escape after focus leaves the visualization', async () => {
+  it('scopes Escape handling to the visualization containing focus', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
-    const target = document.createElement('div')
-    const outside = document.createElement('button')
-    document.body.append(target, outside)
-    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    const firstTarget = document.createElement('div')
+    const secondTarget = document.createElement('div')
+    document.body.append(firstTarget, secondTarget)
+    mountContributionEcosystem(firstTarget, { dataUrl: '/first-index.json' })
+    mountContributionEcosystem(secondTarget, { dataUrl: '/second-index.json' })
     await flushPromises()
-    const owner = target.querySelector<HTMLElement>(
+    const firstOwner = firstTarget.querySelector<HTMLElement>(
+      '.ghc-owner__focus[data-owner="ExampleOrg"]',
+    )!
+    const secondOwner = secondTarget.querySelector<HTMLElement>(
       '.ghc-owner__focus[data-owner="ExampleOrg"]',
     )!
 
-    owner.click()
-    outside.focus()
-    expect(document.activeElement).toBe(outside)
+    firstOwner.click()
+    secondOwner.click()
+    const firstBack = firstTarget.querySelector<HTMLButtonElement>('.ghc-back')!
+    const secondBack = secondTarget.querySelector<HTMLButtonElement>('.ghc-back')!
+    expect(firstBack.hidden).toBe(false)
+    expect(secondBack.hidden).toBe(false)
+    firstBack.focus()
 
     const escapeEvent = new KeyboardEvent('keydown', {
       key: 'Escape', bubbles: true, cancelable: true,
     })
-    outside.dispatchEvent(escapeEvent)
+    firstBack.dispatchEvent(escapeEvent)
 
     expect(escapeEvent.defaultPrevented).toBe(true)
-    expect(target.querySelector<HTMLButtonElement>('.ghc-back')?.hidden).toBe(true)
-    expect(document.activeElement).toBe(owner)
+    expect(firstBack.hidden).toBe(true)
+    expect(secondBack.hidden).toBe(false)
+    expect(document.activeElement).toBe(firstOwner)
   })
 
   it('focuses a repository owner when the repository is activated', async () => {

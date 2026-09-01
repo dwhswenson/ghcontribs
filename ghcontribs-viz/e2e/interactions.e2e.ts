@@ -61,24 +61,6 @@ test('focuses an owner and restores focus on exit', async ({ page }) => {
   await expect(owner).toBeFocused()
 })
 
-test('closes an owner with Escape after focus moves outside the visualization', async ({ page }) => {
-  const owner = page.locator('.ghc-owner__focus[data-owner="AlphaOrg"]')
-  await owner.click()
-  await expect(page.locator('.ghc-back')).toBeVisible()
-
-  await page.evaluate(() => {
-    const outside = document.createElement('button')
-    outside.textContent = 'Outside visualization'
-    document.body.append(outside)
-    outside.focus()
-  })
-  await expect(page.getByRole('button', { name: 'Outside visualization' })).toBeFocused()
-
-  await page.keyboard.press('Escape')
-  await expect(page.locator('.ghc-back')).toBeHidden()
-  await expect(owner).toBeFocused()
-})
-
 test('respects reduced motion', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await expect(page.locator('.ghc-ecosystem')).toHaveCSS(
