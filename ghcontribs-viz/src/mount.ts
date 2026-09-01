@@ -1,6 +1,7 @@
 import type { ContributionType } from './data/types.ts'
 import { loadVisualizationIndex } from './data/load.ts'
 import { layoutEcosystem } from './layout/treemap.ts'
+import { InteractionController } from './interaction/controller.ts'
 import { VisualizationModel } from './model/model.ts'
 import { assertMonth, type MonthRange } from './model/months.ts'
 import type { ContributionWeighting, SizeMode } from './model/weights.ts'
@@ -24,17 +25,34 @@ export interface ContributionEcosystem {
   setSizeMode(mode: SizeMode): void
   setOwnerContributionWeighting(weighting: ContributionWeighting): void
   setRepositoryContributionWeighting(weighting: ContributionWeighting): void
+  focusOwner(owner: string | null): void
 }
 
 const DEFAULT_LAYOUT_WIDTH = 1200
 const MINIMUM_LAYOUT_HEIGHT = 320
-const MAXIMUM_LAYOUT_HEIGHT = 800
+const MAXIMUM_LAYOUT_HEIGHT = 640
+const DEFAULT_VISUALIZATION_CHROME_HEIGHT = 144
+const VIEWPORT_BOTTOM_GUTTER = 16
 
 function measureLayout(element: HTMLElement): { width: number; height: number } {
-  const measuredWidth = element.getBoundingClientRect().width || element.clientWidth
+  const elementRect = element.getBoundingClientRect()
+  const measuredWidth = elementRect.width || element.clientWidth
   const width = Math.max(1, Math.round(measuredWidth || DEFAULT_LAYOUT_WIDTH))
+  const ecosystem = element.querySelector<HTMLElement>('.ghc-ecosystem')
+  const visualization = element.querySelector<HTMLElement>('.ghc-visualization')
+  const measuredChromeHeight = ecosystem !== null && visualization !== null
+    ? visualization.offsetHeight - ecosystem.offsetHeight
+    : 0
+  const chromeHeight = measuredChromeHeight > 0
+    ? measuredChromeHeight
+    : DEFAULT_VISUALIZATION_CHROME_HEIGHT
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight
+  const elementTop = Number.isFinite(elementRect.top) ? Math.max(0, elementRect.top) : 0
+  const availableViewportHeight = viewportHeight - elementTop - chromeHeight
+    - VIEWPORT_BOTTOM_GUTTER
+  const maximumHeight = Math.min(MAXIMUM_LAYOUT_HEIGHT, availableViewportHeight)
   const height = Math.round(
-    Math.min(MAXIMUM_LAYOUT_HEIGHT, Math.max(MINIMUM_LAYOUT_HEIGHT, width * 2 / 3)),
+    Math.max(MINIMUM_LAYOUT_HEIGHT, Math.min(maximumHeight, width * 2 / 3)),
   )
   return { width, height }
 }
@@ -56,8 +74,13 @@ export function mountContributionEcosystem(
     if (destroyed || model === null) return
     const snapshot = model.getSnapshot()
     const { width, height } = measureLayout(element)
-    renderEcosystem(element, snapshot, layoutEcosystem(snapshot, width, height))
+    const focusedOwner = interaction.focusedOwner
+    const layout = layoutEcosystem(snapshot, width, height, { focusedOwner })
+    renderEcosystem(element, snapshot, layout, focusedOwner)
+    interaction.update(snapshot)
   }
+
+  const interaction = new InteractionController(element, rerender)
 
   const scheduleResize = (): void => {
     if (destroyed || resizeFrame !== null) return
@@ -71,6 +94,7 @@ export function mountContributionEcosystem(
     ? null
     : new ResizeObserver(scheduleResize)
   resizeObserver?.observe(element)
+  window.addEventListener('resize', scheduleResize)
 
   renderLoading(element)
   void loadVisualizationIndex(options.dataUrl)
@@ -98,7 +122,9 @@ export function mountContributionEcosystem(
     destroy(): void {
       destroyed = true
       model = null
+      interaction.destroy()
       resizeObserver?.disconnect()
+      window.removeEventListener('resize', scheduleResize)
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
       resizeFrame = null
       element.replaceChildren()
@@ -142,6 +168,9 @@ export function mountContributionEcosystem(
         model.setRepositoryContributionWeighting(weighting)
         rerender()
       }
+    },
+    focusOwner(owner: string | null): void {
+      interaction.focusOwner(owner)
     },
   }
 }

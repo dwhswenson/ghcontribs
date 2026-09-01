@@ -1,6 +1,7 @@
 import type { ContributionCounts } from '../data/types.ts'
 import type { EcosystemLayout, LayoutRect } from '../layout/treemap.ts'
 import type { VisualizationSnapshot } from '../model/model.ts'
+import type { InteractionSnapshot, InteractionTarget } from '../interaction/state.ts'
 
 const COUNT_LABELS: ReadonlyArray<{
   key: keyof ContributionCounts
@@ -61,6 +62,16 @@ function createOwnerElement(ownerName: string): HTMLElement {
 
   const name = document.createElement('h2')
   name.className = 'ghc-owner__name'
+  const focusControl = document.createElement('button')
+  focusControl.type = 'button'
+  focusControl.className = 'ghc-owner__focus'
+  focusControl.dataset.interactionKind = 'owner'
+  focusControl.dataset.owner = ownerName
+  focusControl.tabIndex = 0
+  const label = document.createElement('span')
+  label.className = 'ghc-owner__label'
+  focusControl.append(label)
+  name.append(focusControl)
   owner.append(name)
   return owner
 }
@@ -69,6 +80,9 @@ function createRepositoryElement(key: string): HTMLElement {
   const tile = document.createElement('article')
   tile.className = 'ghc-repository'
   tile.dataset.repositoryKey = key
+  tile.dataset.interactionKind = 'repository'
+  tile.setAttribute('role', 'button')
+  tile.tabIndex = 0
 
   const name = document.createElement('h3')
   name.className = 'ghc-repository__name'
@@ -76,24 +90,73 @@ function createRepositoryElement(key: string): HTMLElement {
   return tile
 }
 
+export interface EcosystemElements {
+  readonly shell: HTMLElement
+  readonly toolbar: HTMLElement
+  readonly backButton: HTMLButtonElement
+  readonly ecosystem: HTMLElement
+  readonly summary: HTMLElement
+}
+
+function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
+  let shell = target.querySelector<HTMLElement>(':scope > .ghc-visualization')
+  if (shell === null) {
+    shell = document.createElement('div')
+    shell.className = 'ghc-visualization'
+
+    const toolbar = document.createElement('div')
+    toolbar.className = 'ghc-toolbar'
+    const toolbarHint = document.createElement('span')
+    toolbarHint.className = 'ghc-toolbar__hint'
+    toolbarHint.textContent = 'Use Tab to explore; press Enter or Space to focus an owner.'
+    const backButton = document.createElement('button')
+    backButton.type = 'button'
+    backButton.className = 'ghc-back'
+    backButton.dataset.action = 'overview'
+    backButton.textContent = 'Back to overview'
+    backButton.hidden = true
+    toolbar.append(toolbarHint, backButton)
+
+    const ecosystem = document.createElement('div')
+    ecosystem.className = 'ghc-ecosystem'
+    ecosystem.setAttribute('role', 'group')
+
+    const summary = document.createElement('aside')
+    summary.className = 'ghc-summary'
+    summary.setAttribute('aria-label', 'Contribution summary')
+    summary.setAttribute('aria-live', 'polite')
+    summary.setAttribute('aria-atomic', 'true')
+    shell.append(toolbar, ecosystem, summary)
+    target.replaceChildren(shell)
+  }
+
+  return {
+    shell,
+    toolbar: shell.querySelector<HTMLElement>(':scope > .ghc-toolbar')!,
+    backButton: shell.querySelector<HTMLButtonElement>('.ghc-back')!,
+    ecosystem: shell.querySelector<HTMLElement>(':scope > .ghc-ecosystem')!,
+    summary: shell.querySelector<HTMLElement>(':scope > .ghc-summary')!,
+  }
+}
+
 export function renderEcosystem(
   target: HTMLElement,
   snapshot: VisualizationSnapshot,
   layout: EcosystemLayout,
-): void {
-  let ecosystem = target.querySelector<HTMLElement>(':scope > .ghc-ecosystem')
-  if (ecosystem === null) {
-    ecosystem = document.createElement('div')
-    ecosystem.className = 'ghc-ecosystem'
-    ecosystem.setAttribute('role', 'group')
-    target.replaceChildren(ecosystem)
-  }
+  focusedOwner: string | null = null,
+): EcosystemElements {
+  const elements = ensureEcosystemElements(target)
+  const { ecosystem } = elements
   ecosystem.setAttribute('role', 'group')
   ecosystem.setAttribute(
     'aria-label',
     `${snapshot.user}'s GitHub contributions: ${countsDescription(snapshot.counts)}`,
   )
   ecosystem.style.height = `${layout.height}px`
+  ecosystem.classList.toggle('ghc-ecosystem--owner-focused', focusedOwner !== null)
+  elements.backButton.hidden = focusedOwner === null
+  elements.toolbar.querySelector<HTMLElement>('.ghc-toolbar__hint')!.hidden =
+    focusedOwner !== null
   const canvas = { x: 0, y: 0, width: layout.width, height: layout.height }
   const remainingOwners = new Map(
     Array.from(ecosystem.querySelectorAll<HTMLElement>(':scope > .ghc-owner')).map(
@@ -109,12 +172,27 @@ export function renderEcosystem(
       'aria-label',
       `${ownerNameText}: ${countsDescription(ownerLayout.owner.counts)}`,
     )
+    const isFocusTarget = ownerNameText === focusedOwner
+    const isFocusHidden = focusedOwner !== null && !isFocusTarget
+    owner.classList.toggle('ghc-owner--focus-target', isFocusTarget)
+    owner.classList.toggle('ghc-owner--focus-hidden', isFocusHidden)
+    owner.inert = isFocusHidden
+    if (isFocusHidden) owner.setAttribute('aria-hidden', 'true')
+    else owner.removeAttribute('aria-hidden')
     positionWithin(owner, ownerLayout, canvas)
 
     const ownerName = owner.querySelector<HTMLElement>(':scope > .ghc-owner__name')!
-    ownerName.textContent = ownerNameText
-    ownerName.classList.toggle(
-      'ghc-visually-hidden',
+    const ownerFocus = ownerName.querySelector<HTMLButtonElement>(
+      ':scope > .ghc-owner__focus',
+    )!
+    const ownerLabel = ownerFocus.querySelector<HTMLElement>(
+      ':scope > .ghc-owner__label',
+    )!
+    ownerLabel.textContent = ownerNameText
+    ownerFocus.setAttribute('aria-label', `Focus ${ownerNameText}`)
+    ownerFocus.setAttribute('aria-expanded', String(isFocusTarget))
+    ownerLabel.classList.toggle(
+      'ghc-owner__label--hidden',
       ownerLayout.width < 72 || ownerLayout.height < 58,
     )
     const remainingRepositories = new Map(
@@ -132,6 +210,7 @@ export function renderEcosystem(
         'aria-label',
         `${repository.key}: ${countsDescription(repository.counts)}`,
       )
+      tile.dataset.owner = repository.owner
       positionWithin(tile, repositoryLayout, ownerLayout)
       tile.classList.toggle(
         'ghc-repository--compact',
@@ -151,13 +230,99 @@ export function renderEcosystem(
         'ghc-visually-hidden',
         repositoryLayout.width < 145 || repositoryLayout.height < 82,
       )
-      owner.append(tile)
+      if (tile.parentElement !== owner) owner.append(tile)
     }
     for (const repository of remainingRepositories.values()) repository.remove()
-    ecosystem.append(owner)
+    if (owner.parentElement !== ecosystem) ecosystem.append(owner)
   }
   for (const owner of remainingOwners.values()) owner.remove()
   ecosystem.classList.add('ghc-ecosystem--layout-ready')
+  return elements
+}
+
+const CONTRIBUTION_TYPE_LABELS: Record<string, string> = {
+  issues: 'issues',
+  pull_requests: 'pull requests',
+  reviews: 'reviews',
+  comments: 'comments',
+}
+
+function sameTarget(left: InteractionTarget | null, right: InteractionTarget): boolean {
+  if (left === null || left.kind !== right.kind || left.owner !== right.owner) return false
+  if (left.kind === 'owner') return true
+  return right.kind === 'repository' && left.key === right.key
+}
+
+export function renderInteraction(
+  target: HTMLElement,
+  snapshot: VisualizationSnapshot,
+  interaction: InteractionSnapshot,
+): void {
+  const elements = ensureEcosystemElements(target)
+  const owners = Array.from(
+    elements.ecosystem.querySelectorAll<HTMLElement>(':scope > .ghc-owner'),
+  )
+  const active = interaction.active
+  elements.ecosystem.classList.toggle('ghc-ecosystem--has-active', active !== null)
+  elements.ecosystem.classList.toggle(
+    'ghc-ecosystem--has-active-repository',
+    active?.kind === 'repository',
+  )
+
+  for (const owner of owners) {
+    const ownerTarget: InteractionTarget = {
+      kind: 'owner', owner: owner.dataset.owner!,
+    }
+    const ownerIsActive = sameTarget(active, ownerTarget)
+    const ownerContainsActiveRepository = active?.kind === 'repository' &&
+      active.owner === owner.dataset.owner
+    owner.classList.toggle('ghc-owner--active', ownerIsActive)
+    owner.classList.toggle('ghc-owner--related', ownerContainsActiveRepository)
+    for (const repository of owner.querySelectorAll<HTMLElement>(
+      ':scope > .ghc-repository',
+    )) {
+      const repositoryTarget: InteractionTarget = {
+        kind: 'repository',
+        owner: repository.dataset.owner!,
+        key: repository.dataset.repositoryKey!,
+      }
+      repository.classList.toggle(
+        'ghc-repository--active',
+        sameTarget(active, repositoryTarget),
+      )
+    }
+  }
+
+  let title = 'All repositories'
+  let counts = snapshot.counts
+  if (active?.kind === 'owner') {
+    const owner = snapshot.owners.find((candidate) => candidate.owner === active.owner)
+    if (owner !== undefined) {
+      title = owner.owner
+      counts = owner.counts
+    }
+  } else if (active?.kind === 'repository') {
+    const repository = snapshot.owners
+      .find((owner) => owner.owner === active.owner)
+      ?.repositories.find((candidate) => candidate.key === active.key)
+    if (repository !== undefined) {
+      title = repository.key
+      counts = repository.counts
+    }
+  }
+
+  const heading = document.createElement('h2')
+  heading.className = 'ghc-summary__title'
+  heading.textContent = title
+  const meta = document.createElement('p')
+  meta.className = 'ghc-summary__meta'
+  const typeNames = snapshot.contributionTypes.map(
+    (type) => CONTRIBUTION_TYPE_LABELS[type],
+  )
+  meta.textContent = `${snapshot.monthRange.from} through ${snapshot.monthRange.through} · ${
+    typeNames.length === 0 ? 'no contribution types selected' : typeNames.join(', ')
+  }`
+  elements.summary.replaceChildren(heading, meta, countList(counts))
 }
 
 export function renderLoading(target: HTMLElement): void {

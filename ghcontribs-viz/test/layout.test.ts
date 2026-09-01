@@ -89,6 +89,31 @@ describe('layoutEcosystem', () => {
     ])
   })
 
+  it('expands a focused owner while retaining reversible overview geometry', () => {
+    const snapshot = new VisualizationModel(structuredClone(index)).getSnapshot()
+    const overview = layoutEcosystem(snapshot, 1200, 800)
+    const focused = layoutEcosystem(snapshot, 1200, 800, { focusedOwner: 'Alpha' })
+    const restored = layoutEcosystem(snapshot, 1200, 800, { focusedOwner: null })
+    const focusedAlpha = focused.owners.find(({ owner }) => owner.owner === 'Alpha')!
+    const focusedBeta = focused.owners.find(({ owner }) => owner.owner === 'Beta')!
+    const overviewBeta = overview.owners.find(({ owner }) => owner.owner === 'Beta')!
+
+    expect(focusedAlpha.width).toBeGreaterThan(overview.owners[0]!.width)
+    expect(focusedAlpha.height).toBeGreaterThanOrEqual(overview.owners[0]!.height)
+    expect(focusedBeta).toEqual(overviewBeta)
+    expect(restored).toEqual(overview)
+    for (const repository of focusedAlpha.repositories) {
+      expect(contains(focusedAlpha, repository)).toBe(true)
+    }
+  })
+
+  it('ignores an unknown focused owner', () => {
+    const snapshot = new VisualizationModel(structuredClone(index)).getSnapshot()
+    expect(layoutEcosystem(snapshot, 1200, 800, { focusedOwner: 'Missing' })).toEqual(
+      layoutEcosystem(snapshot, 1200, 800),
+    )
+  })
+
   it('contains non-overlapping owners and repositories', () => {
     const layout = layoutEcosystem(
       new VisualizationModel(structuredClone(index)).getSnapshot(),

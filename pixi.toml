@@ -6,6 +6,7 @@ platforms = ["osx-64"]
 version = "0.1.0"
 
 [tasks]
+dev = { cmd = "npm run dev", cwd = "ghcontribs-viz" }
 
 [dependencies]
 python = ">=3.11"

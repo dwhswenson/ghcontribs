@@ -17,5 +17,5 @@
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true
   },
-  "include": ["src", "test"]
+  "include": ["src", "test", "e2e", "playwright.config.ts"]
 }
