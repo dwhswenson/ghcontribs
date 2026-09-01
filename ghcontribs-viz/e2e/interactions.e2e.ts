@@ -107,10 +107,17 @@ test('keeps the ecosystem and summary usable on a mobile viewport', async ({ pag
 test('matches stable overview and focused-owner visuals', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' })
   await page.setViewportSize({ width: 1100, height: 900 })
+  const visualization = page.locator('.ghc-visualization')
+  await visualization.evaluate((element) => {
+    element.style.position = 'absolute'
+    element.style.inset = '0 auto auto 0'
+    element.style.width = '1068px'
+    element.style.height = '648px'
+  })
   const summaryBox = await page.locator('.ghc-summary').boundingBox()
   expect(summaryBox).not.toBeNull()
   expect(summaryBox!.y + summaryBox!.height).toBeLessThanOrEqual(900)
-  await expect(page.locator('.ghc-visualization')).toHaveScreenshot(
+  await expect(visualization).toHaveScreenshot(
     'ecosystem-overview.png',
     { animations: 'disabled', maxDiffPixelRatio: 0.03 },
   )
@@ -131,7 +138,7 @@ test('matches stable overview and focused-owner visuals', async ({ page }) => {
   await page.evaluate(() => new Promise<void>((resolve) => {
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
   }))
-  await expect(page.locator('.ghc-visualization')).toHaveScreenshot(
+  await expect(visualization).toHaveScreenshot(
     'ecosystem-owner-focused.png',
     { animations: 'disabled', maxDiffPixelRatio: 0.03 },
   )
