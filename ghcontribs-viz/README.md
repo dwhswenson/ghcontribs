@@ -38,3 +38,19 @@ visualization.setRepositoryContributionWeighting(
   (count) => Math.cbrt(count),
 )
 ```
+
+## Interaction
+
+Hovering or focusing an owner or repository shows its filtered contribution
+summary. Use Tab to move between visible items, Enter or Space to focus an
+owner, and Escape or the “Back to overview” button to return.
+
+Consumers can also control semantic owner focus without moving DOM focus:
+
+```ts
+visualization.focusOwner('ExampleOrg')
+visualization.focusOwner(null)
+```
+
+Unknown owner names are ignored. Repository selection and detail loading are
+reserved for the next milestone.

@@ -9,9 +9,10 @@ app.innerHTML = `
       <div>
         <h1>Repository ecosystem</h1>
         <p class="demo-intro">
-          A static map of contribution activity, grouped by repository owner.
+          An interactive map of contribution activity, grouped by repository owner.
           Tile area uses square-root scaling of activity across issues, pull requests,
-          reviews, and comments.
+          reviews, and comments. Hover or focus a tile for details; use Tab to move,
+          Enter or Space to focus an owner, and Escape to return to the overview.
         </p>
       </div>
       <fieldset class="demo-size-control">

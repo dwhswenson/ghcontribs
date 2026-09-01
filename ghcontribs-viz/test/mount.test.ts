@@ -25,6 +25,24 @@ function richerIndex(): VisualizationIndex {
   return index
 }
 
+function interactiveIndex(): VisualizationIndex {
+  const index = richerIndex()
+  index.owners.push({
+    owner: 'AnotherOrganizationWithALongName',
+    repositories: [{
+      key: 'AnotherOrganizationWithALongName/another-long-repository-name',
+      name: 'another-long-repository-name',
+      contributions: {
+        total: { issues: 2, pull_requests: 3, reviews: 0, comments: 1 },
+        by_month: {
+          '2024-02': { issues: 2, pull_requests: 3, reviews: 0, comments: 1 },
+        },
+      },
+    }],
+  })
+  return index
+}
+
 afterEach(() => {
   vi.unstubAllGlobals()
   document.body.replaceChildren()
@@ -54,6 +72,170 @@ describe('mountContributionEcosystem', () => {
         'ghc-ecosystem--layout-ready',
       ),
     ).toBe(true)
+    expect(target.querySelector('.ghc-summary')?.textContent).toContain(
+      '2024-01 through 2024-02',
+    )
+  })
+
+  it('shows equivalent filtered summaries for pointer and keyboard focus', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const repository = target.querySelector<HTMLElement>(
+      '[data-repository-key="AnotherOrganizationWithALongName/another-long-repository-name"]',
+    )!
+
+    repository.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+    expect(target.querySelector('.ghc-summary')?.textContent).toContain(
+      'AnotherOrganizationWithALongName/another-long-repository-name',
+    )
+    expect(repository.classList).toContain('ghc-repository--active')
+    expect(repository.closest('.ghc-owner')?.classList).toContain('ghc-owner--related')
+
+    repository.focus()
+    repository.dispatchEvent(new MouseEvent('pointerout', { bubbles: true }))
+    expect(target.querySelector('.ghc-summary')?.textContent).toContain(
+      'AnotherOrganizationWithALongName/another-long-repository-name',
+    )
+
+    controller.setContributionTypes(['pull_requests'])
+    controller.setMonthRange({ from: '2024-02', through: '2024-02' })
+    const summary = target.querySelector('.ghc-summary')?.textContent
+    expect(summary).toContain('2024-02 through 2024-02')
+    expect(summary).toContain('pull requests')
+    expect(summary).toContain('3')
+  })
+
+  it('does not highlight repositories when their owner is active', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+    const target = document.createElement('div')
+    document.body.append(target)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const owner = target.querySelector<HTMLElement>(
+      '.ghc-owner__focus[data-owner="ExampleOrg"]',
+    )!
+
+    owner.dispatchEvent(new MouseEvent('pointerover', { bubbles: true }))
+
+    expect(target.querySelector('.ghc-owner--active')).not.toBeNull()
+    expect(target.querySelector('.ghc-repository--active')).toBeNull()
+    expect(target.querySelector('.ghc-repository--related')).toBeNull()
+    expect(
+      target.querySelector('.ghc-ecosystem')?.classList,
+    ).not.toContain('ghc-ecosystem--has-active-repository')
+  })
+
+  it('uses normal tab stops and restores focus after owner focus', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+    const target = document.createElement('div')
+    document.body.append(target)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const firstOwner = target.querySelector<HTMLElement>(
+      '.ghc-owner__focus[data-owner="ExampleOrg"]',
+    )!
+    const repository = target.querySelector<HTMLElement>(
+      '[data-repository-key="ExampleOrg/example"]',
+    )!
+
+    expect(firstOwner.tabIndex).toBe(0)
+    expect(repository.tabIndex).toBe(0)
+    firstOwner.focus()
+    const arrowEvent = new KeyboardEvent('keydown', {
+      key: 'ArrowRight', bubbles: true, cancelable: true,
+    })
+    firstOwner.dispatchEvent(arrowEvent)
+    expect(arrowEvent.defaultPrevented).toBe(false)
+    expect(document.activeElement).toBe(firstOwner)
+
+    firstOwner.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Enter', bubbles: true,
+    }))
+    expect(target.querySelector('.ghc-back')).not.toHaveProperty('hidden', true)
+    expect(
+      target.querySelector('[data-owner="AnotherOrganizationWithALongName"]')
+        ?.getAttribute('aria-hidden'),
+    ).toBe('true')
+    expect(document.activeElement).toBe(firstOwner)
+
+    firstOwner.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true,
+    }))
+    expect(target.querySelector<HTMLButtonElement>('.ghc-back')?.hidden).toBe(true)
+    expect(document.activeElement).toBe(firstOwner)
+  })
+
+  it('closes a focused owner with Escape after focus leaves the visualization', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+    const target = document.createElement('div')
+    const outside = document.createElement('button')
+    document.body.append(target, outside)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const owner = target.querySelector<HTMLElement>(
+      '.ghc-owner__focus[data-owner="ExampleOrg"]',
+    )!
+
+    owner.click()
+    outside.focus()
+    expect(document.activeElement).toBe(outside)
+
+    const escapeEvent = new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true, cancelable: true,
+    })
+    outside.dispatchEvent(escapeEvent)
+
+    expect(escapeEvent.defaultPrevented).toBe(true)
+    expect(target.querySelector<HTMLButtonElement>('.ghc-back')?.hidden).toBe(true)
+    expect(document.activeElement).toBe(owner)
+  })
+
+  it('focuses a repository owner when the repository is activated', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+    const target = document.createElement('div')
+    document.body.append(target)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const repository = target.querySelector<HTMLElement>(
+      '[data-repository-key="ExampleOrg/example"]',
+    )!
+
+    repository.click()
+    expect(target.querySelector('[data-owner="ExampleOrg"]')?.classList).toContain(
+      'ghc-owner--focus-target',
+    )
+    expect(
+      target.querySelector('[data-owner="AnotherOrganizationWithALongName"]')
+        ?.getAttribute('aria-hidden'),
+    ).toBe('true')
+
+    repository.dispatchEvent(new KeyboardEvent('keydown', {
+      key: ' ', bubbles: true, cancelable: true,
+    }))
+    expect(target.querySelector('[data-owner="ExampleOrg"]')?.classList).toContain(
+      'ghc-owner--focus-target',
+    )
+  })
+
+  it('supports pending and loaded semantic owner focus with unknown owners ignored', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+    const target = document.createElement('div')
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    controller.focusOwner('ExampleOrg')
+    await flushPromises()
+
+    expect(target.querySelector('[data-owner="ExampleOrg"]')?.classList).toContain(
+      'ghc-owner--focus-target',
+    )
+    controller.focusOwner('MissingOwner')
+    expect(target.querySelector('[data-owner="ExampleOrg"]')?.classList).toContain(
+      'ghc-owner--focus-target',
+    )
+    controller.focusOwner(null)
+    expect(target.querySelector('.ghc-owner--focus-target')).toBeNull()
   })
 
   it('applies pending and loaded controller changes and rerenders geometry', async () => {
@@ -139,7 +321,7 @@ describe('mountContributionEcosystem', () => {
 
     const target = document.createElement('div')
     vi.spyOn(target, 'getBoundingClientRect').mockImplementation(
-      () => ({ width } as DOMRect),
+      () => ({ top: 0, width } as DOMRect),
     )
     const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
     await flushPromises()
@@ -147,7 +329,7 @@ describe('mountContributionEcosystem', () => {
       '[data-repository-key="ExampleOrg/example"]',
     )
     expect(target.querySelector<HTMLElement>('.ghc-ecosystem')?.style.height).toBe(
-      '800px',
+      '608px',
     )
     expect(observe).toHaveBeenCalledWith(target)
 

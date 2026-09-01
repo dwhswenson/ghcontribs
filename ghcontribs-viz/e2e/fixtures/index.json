@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "user": "octocat",
+  "source": { "first_month": "2024-01", "last_month": "2024-02" },
+  "owners": [
+    {
+      "owner": "AlphaOrg",
+      "repositories": [
+        {
+          "key": "AlphaOrg/large-project",
+          "name": "large-project",
+          "contributions": {
+            "total": { "issues": 8, "pull_requests": 5, "reviews": 3, "comments": 13 },
+            "by_month": {
+              "2024-01": { "issues": 3, "pull_requests": 2, "reviews": 1, "comments": 5 },
+              "2024-02": { "issues": 5, "pull_requests": 3, "reviews": 2, "comments": 8 }
+            }
+          }
+        },
+        {
+          "key": "AlphaOrg/small-project",
+          "name": "small-project",
+          "contributions": {
+            "total": { "issues": 1, "pull_requests": 1, "reviews": 0, "comments": 1 },
+            "by_month": {
+              "2024-02": { "issues": 1, "pull_requests": 1, "reviews": 0, "comments": 1 }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "owner": "LongExampleOrganization",
+      "repositories": [
+        {
+          "key": "LongExampleOrganization/repository-with-a-long-name",
+          "name": "repository-with-a-long-name",
+          "contributions": {
+            "total": { "issues": 2, "pull_requests": 4, "reviews": 6, "comments": 8 },
+            "by_month": {
+              "2024-01": { "issues": 1, "pull_requests": 2, "reviews": 3, "comments": 4 },
+              "2024-02": { "issues": 1, "pull_requests": 2, "reviews": 3, "comments": 4 }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

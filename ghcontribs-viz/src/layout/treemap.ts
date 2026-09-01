@@ -26,6 +26,10 @@ export interface EcosystemLayout {
   readonly owners: readonly OwnerLayout[]
 }
 
+export interface LayoutOptions {
+  readonly focusedOwner?: string | null
+}
+
 interface WeightedItem<T> {
   readonly value: T
   readonly weight: number
@@ -189,6 +193,7 @@ export function layoutEcosystem(
   snapshot: VisualizationSnapshot,
   width = 1200,
   height = 800,
+  options: LayoutOptions = {},
 ): EcosystemLayout {
   if (
     !(width > 0) ||
@@ -220,13 +225,16 @@ export function layoutEcosystem(
     height,
     owners: Object.freeze(
       positionedOwners.map((positionedOwner): OwnerLayout => {
+        const ownerRect = positionedOwner.value.owner === options.focusedOwner
+          ? bounds
+          : positionedOwner
         const repositoryWeights = positionedOwner.value.repositories.map(
           (repository) => ({
             value: repository,
             weight: effectiveWeight(repository.weight),
           }),
         )
-        const repositoryRect = repositoryBounds(positionedOwner)
+        const repositoryRect = repositoryBounds(ownerRect)
         const repositoryItems = allocateMinimumAreas(
           repositoryWeights,
           repositoryRect,
@@ -250,10 +258,10 @@ export function layoutEcosystem(
         )
 
         return Object.freeze({
-          x: positionedOwner.x,
-          y: positionedOwner.y,
-          width: positionedOwner.width,
-          height: positionedOwner.height,
+          x: ownerRect.x,
+          y: ownerRect.y,
+          width: ownerRect.width,
+          height: ownerRect.height,
           owner: positionedOwner.value,
           repositories: Object.freeze(repositories),
         })
