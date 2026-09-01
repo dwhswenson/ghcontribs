@@ -1,6 +1,7 @@
 import json
 import os
 from pathlib import Path
+from threading import Event, Thread
 from unittest.mock import patch
 
 import pytest
@@ -101,6 +102,24 @@ def test_build_dataset_counts_only_top_level_records(tmp_path):
         'last_month': '2024-02',
     }
     assert len(details['ExampleOrg/example-repo']['contributions']) == 4
+
+
+def test_archive_is_read_once(tmp_path):
+    archive = tmp_path / '2024-01.json'
+    write_month(tmp_path, '2024-01', [issue()])
+    real_read_text = Path.read_text
+    archive_reads = 0
+
+    def count_archive_reads(path, *args, **kwargs):
+        nonlocal archive_reads
+        if path == archive:
+            archive_reads += 1
+        return real_read_text(path, *args, **kwargs)
+
+    with patch.object(Path, 'read_text', count_archive_reads):
+        build_dataset('octocat', tmp_path)
+
+    assert archive_reads == 1
 
 
 @pytest.mark.parametrize(
@@ -256,6 +275,71 @@ def test_force_replaces_complete_tree_and_removes_stale_files(tmp_path):
     assert (output / 'repos' / 'ExampleOrg' / 'example-repo.json').is_file()
 
 
+def test_rechecks_destination_after_build_before_unforced_install(tmp_path):
+    source = tmp_path / 'source'
+    output = tmp_path / 'output'
+    write_month(source, '2024-01', [issue()])
+    real_build_dataset = build_dataset
+
+    def create_destination_during_build(*args, **kwargs):
+        result = real_build_dataset(*args, **kwargs)
+        output.mkdir()
+        (output / 'concurrent.txt').write_text('keep me')
+        return result
+
+    with patch(
+        'ghcontribs.byrepo.build_dataset',
+        side_effect=create_destination_during_build,
+    ):
+        with pytest.raises(ByRepoError, match='use --force'):
+            organize_contributions('octocat', source, output)
+
+    assert (output / 'concurrent.txt').read_text() == 'keep me'
+    assert not list(tmp_path.glob('.output.tmp-*'))
+
+
+def test_installations_for_same_output_are_serialized(tmp_path):
+    source = tmp_path / 'source'
+    output = tmp_path / 'output'
+    write_month(source, '2024-01', [issue()])
+    first_swap_started = Event()
+    allow_first_swap = Event()
+    real_replace = os.replace
+    errors = []
+    calls = 0
+
+    def pause_first_install(source_path, destination_path):
+        nonlocal calls
+        if Path(destination_path) == output:
+            calls += 1
+            if calls == 1:
+                first_swap_started.set()
+                assert allow_first_swap.wait(timeout=5)
+        return real_replace(source_path, destination_path)
+
+    def run_organizer():
+        try:
+            organize_contributions('octocat', source, output, force=True)
+        except BaseException as exc:  # pragma: no cover - asserted below
+            errors.append(exc)
+
+    with patch('ghcontribs.byrepo.os.replace', side_effect=pause_first_install):
+        first = Thread(target=run_organizer)
+        second = Thread(target=run_organizer)
+        first.start()
+        assert first_swap_started.wait(timeout=5)
+        second.start()
+        allow_first_swap.set()
+        first.join(timeout=5)
+        second.join(timeout=5)
+
+    assert not first.is_alive()
+    assert not second.is_alive()
+    assert errors == []
+    assert (output / 'index.json').is_file()
+    assert not list(tmp_path.glob('.output.backup-*'))
+
+
 def test_rejects_overlapping_and_symlinked_output(tmp_path):
     source = tmp_path / 'source'
     write_month(source, '2024-01', [])
@@ -315,3 +399,18 @@ def test_golden_directory_and_repeat_build_are_deterministic(tmp_path):
         expected = (FIXTURES / 'expected' / relative).read_bytes()
         assert (first / relative).read_bytes() == expected
         assert (second / relative).read_bytes() == expected
+
+
+def test_non_ascii_data_round_trips_as_utf8(tmp_path):
+    source = tmp_path / 'source'
+    output = tmp_path / 'output'
+    write_month(source, '2024-01', [issue(title='Café Δ')])
+
+    organize_contributions('octocat', source, output)
+
+    detail = json.loads(
+        (output / 'repos' / 'ExampleOrg' / 'example-repo.json').read_text(
+            encoding='utf-8'
+        )
+    )
+    assert detail['contributions'][0]['title'] == 'Café Δ'

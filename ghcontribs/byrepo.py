@@ -12,9 +12,9 @@ from datetime import timezone
 from pathlib import Path
 from typing import Any
 
+from filelock import FileLock
 from jsonschema import ValidationError
 
-from . import json_utils
 from .contrib import Contribution
 from .schema_utils import make_validator
 
@@ -145,7 +145,9 @@ def build_dataset(
             raise _schema_error(path, exc) from exc
 
         try:
-            rich_records = json_utils.load_json_file(path)
+            rich_records = [
+                Contribution.from_dict(record) for record in raw_records
+            ]
         except (TypeError, ValueError) as exc:
             raise ByRepoError(
                 f'cannot decode contributions in {path.name}: {exc}'
@@ -312,26 +314,39 @@ def organize_contributions(
             _write_json(stage / 'repos' / owner / f'{repository}.json', details[key])
 
         # Validate serialized output too, guarding the emitter boundary.
-        serialized_index = json.loads((stage / 'index.json').read_text())
+        serialized_index = json.loads(
+            (stage / 'index.json').read_text(encoding='utf-8')
+        )
         serialized_details = {
             key: json.loads(
                 (stage / 'repos' / key.split('/', 1)[0] /
-                 f"{key.split('/', 1)[1]}.json").read_text()
+                 f"{key.split('/', 1)[1]}.json").read_text(encoding='utf-8')
             )
             for key in details
         }
         _validate_output(serialized_index, serialized_details)
 
-        if output_path.exists():
-            os.replace(output_path, backup)
-            try:
+        lock = FileLock(parent / f'.{output_path.name}.lock')
+        with lock:
+            if output_path.exists():
+                if not output_path.is_dir():
+                    raise ByRepoError(
+                        f'output path is not a directory: {output_path}'
+                    )
+                if not force:
+                    raise ByRepoError(
+                        f'output directory already exists: {output_path}; '
+                        'use --force to replace it'
+                    )
+                os.replace(output_path, backup)
+                try:
+                    os.replace(stage, output_path)
+                except BaseException:
+                    os.replace(backup, output_path)
+                    raise
+                shutil.rmtree(backup)
+            else:
                 os.replace(stage, output_path)
-            except BaseException:
-                os.replace(backup, output_path)
-                raise
-            shutil.rmtree(backup)
-        else:
-            os.replace(stage, output_path)
     finally:
         if stage.exists():
             shutil.rmtree(stage)
