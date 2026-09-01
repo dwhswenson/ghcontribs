@@ -223,6 +223,7 @@ describe('mountContributionEcosystem', () => {
       '[data-repository-key="ExampleOrg/example"]',
     )!
 
+    expect(repository.getAttribute('role')).toBe('button')
     repository.click()
     expect(target.querySelector('[data-owner="ExampleOrg"]')?.classList).toContain(
       'ghc-owner--focus-target',

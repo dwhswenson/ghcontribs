@@ -81,6 +81,7 @@ function createRepositoryElement(key: string): HTMLElement {
   tile.className = 'ghc-repository'
   tile.dataset.repositoryKey = key
   tile.dataset.interactionKind = 'repository'
+  tile.setAttribute('role', 'button')
   tile.tabIndex = 0
 
   const name = document.createElement('h3')
