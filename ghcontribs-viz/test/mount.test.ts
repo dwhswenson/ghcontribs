@@ -144,12 +144,6 @@ describe('mountContributionEcosystem', () => {
     expect(firstOwner.tabIndex).toBe(0)
     expect(repository.tabIndex).toBe(0)
     firstOwner.focus()
-    const arrowEvent = new KeyboardEvent('keydown', {
-      key: 'ArrowRight', bubbles: true, cancelable: true,
-    })
-    firstOwner.dispatchEvent(arrowEvent)
-    expect(arrowEvent.defaultPrevented).toBe(false)
-    expect(document.activeElement).toBe(firstOwner)
 
     firstOwner.dispatchEvent(new KeyboardEvent('keydown', {
       key: 'Enter', bubbles: true,

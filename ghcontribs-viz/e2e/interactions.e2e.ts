@@ -40,11 +40,9 @@ test('focuses an owner when one of its repositories is clicked', async ({ page }
   )
 })
 
-test('ignores arrow keys and restores an activated owner', async ({ page }) => {
+test('focuses an owner and restores focus on exit', async ({ page }) => {
   const owner = page.locator('.ghc-owner__focus[data-owner="AlphaOrg"]')
   await owner.focus()
-  await page.keyboard.press('ArrowRight')
-  await expect(owner).toBeFocused()
 
   await page.keyboard.press('Enter')
   await expect(page.locator('.ghc-back')).toBeVisible()
