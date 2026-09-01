@@ -1,0 +1,22 @@
+[
+  {
+    "url": "https://github.com/ExampleOrg/alpha/issues/1",
+    "created": "2024-01-02T12:00:00+00:00",
+    "contrib_type": "issue",
+    "owner": "ExampleOrg",
+    "repo": "alpha",
+    "number": 1,
+    "title": "First issue"
+  },
+  {
+    "url": "https://github.com/Personal/beta/pull/2",
+    "created": "2024-01-03T12:00:00+00:00",
+    "contrib_type": "pullRequest",
+    "owner": "Personal",
+    "repo": "beta",
+    "number": 2,
+    "title": "First pull request",
+    "merged": true,
+    "closes": []
+  }
+]

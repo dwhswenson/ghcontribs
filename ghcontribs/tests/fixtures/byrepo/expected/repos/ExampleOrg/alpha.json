@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "key": "ExampleOrg/alpha",
+  "owner": "ExampleOrg",
+  "name": "alpha",
+  "contributions": [
+    {
+      "url": "https://github.com/ExampleOrg/alpha/issues/1",
+      "created": "2024-01-02T12:00:00+00:00",
+      "contrib_type": "issue",
+      "owner": "ExampleOrg",
+      "repo": "alpha",
+      "number": 1,
+      "title": "First issue"
+    }
+  ]
+}
