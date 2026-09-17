@@ -12,6 +12,10 @@
   color: #e6edf3;
 }
 
+.ghc-viz-root {
+  container: ghc-viz / inline-size;
+}
+
 .ghc-toolbar {
   display: flex;
   min-height: 2.75rem;
@@ -371,6 +375,36 @@
 @media (prefers-reduced-motion: reduce) {
   .ghc-ecosystem {
     --ghc-layout-duration: 0ms;
+  }
+}
+
+@container ghc-viz (min-width: 70rem) {
+  .ghc-visualization:has(.ghc-details) {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 25rem);
+    grid-template-areas:
+      "toolbar toolbar"
+      "ecosystem details"
+      "summary details";
+    column-gap: 1rem;
+  }
+
+  .ghc-visualization:has(.ghc-details) > .ghc-toolbar {
+    grid-area: toolbar;
+  }
+
+  .ghc-visualization:has(.ghc-details) > .ghc-ecosystem {
+    grid-area: ecosystem;
+  }
+
+  .ghc-visualization:has(.ghc-details) > .ghc-summary {
+    grid-area: summary;
+  }
+
+  .ghc-visualization:has(.ghc-details) > .ghc-details {
+    grid-area: details;
+    align-self: start;
+    margin-top: 0;
   }
 }
 

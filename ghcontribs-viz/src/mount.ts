@@ -39,8 +39,9 @@ const VIEWPORT_BOTTOM_GUTTER = 16
 function measureLayout(element: HTMLElement): { width: number; height: number } {
   const elementRect = element.getBoundingClientRect()
   const measuredWidth = elementRect.width || element.clientWidth
-  const width = Math.max(1, Math.round(measuredWidth || DEFAULT_LAYOUT_WIDTH))
   const ecosystem = element.querySelector<HTMLElement>('.ghc-ecosystem')
+  const ecosystemWidth = ecosystem?.getBoundingClientRect().width ?? 0
+  const width = Math.max(1, Math.round(ecosystemWidth || measuredWidth || DEFAULT_LAYOUT_WIDTH))
   const visualization = element.querySelector<HTMLElement>('.ghc-visualization')
   const measuredChromeHeight = ecosystem !== null && visualization !== null
     ? visualization.offsetHeight - ecosystem.offsetHeight
@@ -63,6 +64,7 @@ export function mountContributionEcosystem(
   element: HTMLElement,
   options: ContributionEcosystemOptions,
 ): ContributionEcosystem {
+  element.classList.add('ghc-viz-root')
   let model: VisualizationModel | null = null
   let destroyed = false
   let pendingContributionTypes: ContributionType[] | undefined
@@ -84,17 +86,17 @@ export function mountContributionEcosystem(
   const rerender = (): void => {
     if (destroyed || model === null) return
     const snapshot = model.getSnapshot()
-    const { width, height } = measureLayout(element)
-    const focusedOwner = interaction.focusedOwner
-    const layout = layoutEcosystem(snapshot, width, height, { focusedOwner })
-    renderEcosystem(element, snapshot, layout, focusedOwner)
-    interaction.update(snapshot)
     renderDetails(
       element,
       selectedRepository === null ? null : findRepository(selectedRepository) ?? null,
       detailState,
       snapshot,
     )
+    const { width, height } = measureLayout(element)
+    const focusedOwner = interaction.focusedOwner
+    const layout = layoutEcosystem(snapshot, width, height, { focusedOwner })
+    renderEcosystem(element, snapshot, layout, focusedOwner)
+    interaction.update(snapshot)
   }
 
   const startDetailsLoad = (): void => {
@@ -203,6 +205,7 @@ export function mountContributionEcosystem(
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
       resizeFrame = null
       element.replaceChildren()
+      element.classList.remove('ghc-viz-root')
     },
     setContributionTypes(types: ContributionType[]): void {
       pendingContributionTypes = [...types]
