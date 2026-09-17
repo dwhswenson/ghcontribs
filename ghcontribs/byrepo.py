@@ -1,6 +1,7 @@
 """Organize monthly contribution archives for the browser visualization."""
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -45,6 +46,18 @@ def _zero_counts() -> dict[str, int]:
 def _safe_component(value: str, label: str) -> None:
     if value in {'.', '..'} or '/' in value or '\\' in value or '\x00' in value:
         raise ByRepoError(f'unsafe {label} path component: {value!r}')
+
+
+def _encoded_path_component(value: str) -> str:
+    """Return a portable, case-stable representation of a GitHub name."""
+    encoded = base64.b32encode(value.encode('utf-8')).decode('ascii')
+    return f'x-{encoded.rstrip("=").lower()}'
+
+
+def _repository_details_path(owner: str, repository: str) -> str:
+    owner_component = _encoded_path_component(owner)
+    repository_component = _encoded_path_component(repository)
+    return f'repos/{owner_component}/{repository_component}.json'
 
 
 def _month_from_filename(path: Path) -> str:
@@ -231,6 +244,9 @@ def build_dataset(
             repo_summaries.append({
                 'key': key,
                 'name': aggregate.name,
+                'details_path': _repository_details_path(
+                    owner, aggregate.name
+                ),
                 'contributions': {
                     'total': aggregate.total,
                     'by_month': {
@@ -311,7 +327,10 @@ def organize_contributions(
         (stage / 'repos').mkdir()
         for key in sorted(details, key=lambda item: (item.casefold(), item)):
             owner, repository = key.split('/', 1)
-            _write_json(stage / 'repos' / owner / f'{repository}.json', details[key])
+            relative_path = Path(
+                *_repository_details_path(owner, repository).split('/')
+            )
+            _write_json(stage / relative_path, details[key])
 
         # Validate serialized output too, guarding the emitter boundary.
         serialized_index = json.loads(
@@ -319,8 +338,14 @@ def organize_contributions(
         )
         serialized_details = {
             key: json.loads(
-                (stage / 'repos' / key.split('/', 1)[0] /
-                 f"{key.split('/', 1)[1]}.json").read_text(encoding='utf-8')
+                (
+                    stage
+                    / Path(
+                        *_repository_details_path(
+                            *key.split('/', 1)
+                        ).split('/')
+                    )
+                ).read_text(encoding='utf-8')
             )
             for key in details
         }

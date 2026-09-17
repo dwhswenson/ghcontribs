@@ -27,6 +27,7 @@ describe('visualization index validation', () => {
   it.each([
     ['invalid month', (value: Record<string, any>) => (value.source.first_month = '2024-13')],
     ['invalid key', (value: Record<string, any>) => (value.owners[0].repositories[0].key = 'example')],
+    ['invalid details path', (value: Record<string, any>) => (value.owners[0].repositories[0].details_path = 'repos/CON/example.json')],
     ['negative count', (value: Record<string, any>) => (value.owners[0].repositories[0].contributions.total.issues = -1)],
     ['missing count', (value: Record<string, any>) => delete value.owners[0].repositories[0].contributions.total.comments],
     ['unknown property', (value: Record<string, any>) => (value.unexpected = true)],

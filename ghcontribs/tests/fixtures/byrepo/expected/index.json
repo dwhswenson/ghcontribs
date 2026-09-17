@@ -12,6 +12,7 @@
         {
           "key": "ExampleOrg/alpha",
           "name": "alpha",
+          "details_path": "repos/x-iv4gc3lqnrsu64th/x-mfwha2db.json",
           "contributions": {
             "total": {
               "issues": 1,
@@ -37,6 +38,7 @@
         {
           "key": "Personal/beta",
           "name": "beta",
+          "details_path": "repos/x-kbsxe43pnzqwy/x-mjsxiyi.json",
           "contributions": {
             "total": {
               "issues": 0,

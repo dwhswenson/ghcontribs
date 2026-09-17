@@ -143,13 +143,13 @@ The organizer produces a complete static dataset:
 dist-data/
 ├── index.json
 └── repos/
-    ├── omsf/
-    │   ├── lambdacron.json
-    │   └── static-site-tools.json
-    ├── openforcefield/
-    │   └── openff-toolkit.json
-    └── dwhswenson/
-        └── ghcontribs.json
+    ├── x-n5wxgzq/
+    │   ├── x-nrqw2ytemfrxe33o.json
+    │   └── x-on2gc5djmmwxg2lumuwxi33pnrzq.json
+    ├── x-n5ygk3tgn5zggzlgnfswyza/
+    │   └── x-n5ygk3tgmywxi33pnrvws5a.json
+    └── x-mr3wq43xmvxhg33o/
+        └── x-m5ugg33oorzgsytt.json
 ```
 
 Both schemas use numeric `schema_version: 1`. Generated files do not contain a
@@ -201,6 +201,7 @@ Conceptually:
         {
           "key": "omsf/lambdacron",
           "name": "lambdacron",
+          "details_path": "repos/x-n5wxgzq/x-nrqw2ytemfrxe33o.json",
           "contributions": {
             "total": {
               "issues": 3,
@@ -244,8 +245,12 @@ Important contract rules:
   top-level contribution. Missing months are interpreted as four zero counts.
 - Owners and repositories are sorted deterministically by case-folded name,
   with the preserved spelling as the tie-breaker.
-- The repository detail URL is derived from the key as
-  `repos/{owner}/{repo}.json`; no filename field is needed.
+- Each repository summary contains a `details_path` relative URL. Its owner and
+  repository components are lowercase, unpadded Base32 encodings of the UTF-8
+  source names, prefixed with `x-`. This makes the generated tree portable
+  across case-insensitive filesystems and platforms with reserved device names.
+  Browser consumers use the emitted path rather than reproducing the encoding
+  or deriving a filesystem path from `key`.
 - GitHub repository IDs, stars, downloads, and other metadata are omitted
   because they are not present in the monthly source contract.
 
@@ -254,7 +259,8 @@ sum the already-loaded repository counts for owner hover and focus states.
 
 ### Repository detail files
 
-For example, `repos/omsf/lambdacron.json` contains:
+For example, the `details_path` for `omsf/lambdacron`,
+`repos/x-n5wxgzq/x-nrqw2ytemfrxe33o.json`, contains:
 
 ```json
 {
@@ -656,7 +662,7 @@ Cloudflare Pages: Astro HTML/CSS and versioned visualization JS
                               ↓
                      R2: derived data
                     ↙                ↘
-              index.json       repos/owner/repo.json
+              index.json       encoded repository details paths
 ```
 
 Only `index.json` is required at initial load. Repository details are fetched

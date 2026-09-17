@@ -272,7 +272,40 @@ def test_force_replaces_complete_tree_and_removes_stale_files(tmp_path):
 
     assert not (output / 'stale.json').exists()
     assert (output / 'index.json').is_file()
-    assert (output / 'repos' / 'ExampleOrg' / 'example-repo.json').is_file()
+    assert (
+        output
+        / 'repos'
+        / 'x-iv4gc3lqnrsu64th'
+        / 'x-mv4gc3lqnrss24tfobxq.json'
+    ).is_file()
+
+
+@pytest.mark.parametrize(
+    'owner,repository',
+    [
+        ('CON', 'repository'),
+        ('owner', 'AUX'),
+        ('LPT1', 'NUL'),
+    ],
+)
+def test_windows_reserved_names_use_portable_details_paths(
+    tmp_path,
+    owner,
+    repository,
+):
+    source = tmp_path / 'source'
+    output = tmp_path / 'output'
+    write_month(source, '2024-01', [issue(owner=owner, repo=repository)])
+
+    organize_contributions('octocat', source, output)
+
+    index = json.loads((output / 'index.json').read_text(encoding='utf-8'))
+    summary = index['owners'][0]['repositories'][0]
+    details_path = summary['details_path']
+    assert details_path.startswith('repos/x-')
+    assert Path(details_path).parts[1] != owner
+    assert Path(details_path).stem != repository
+    assert (output / Path(*details_path.split('/'))).is_file()
 
 
 def test_rechecks_destination_after_build_before_unforced_install(tmp_path):
@@ -408,9 +441,9 @@ def test_non_ascii_data_round_trips_as_utf8(tmp_path):
 
     organize_contributions('octocat', source, output)
 
+    index = json.loads((output / 'index.json').read_text(encoding='utf-8'))
+    details_path = index['owners'][0]['repositories'][0]['details_path']
     detail = json.loads(
-        (output / 'repos' / 'ExampleOrg' / 'example-repo.json').read_text(
-            encoding='utf-8'
-        )
+        (output / Path(*details_path.split('/'))).read_text(encoding='utf-8')
     )
     assert detail['contributions'][0]['title'] == 'Café Δ'

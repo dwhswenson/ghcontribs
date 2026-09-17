@@ -111,6 +111,7 @@
       "required": [
         "key",
         "name",
+        "details_path",
         "contributions"
       ],
       "properties": {
@@ -123,6 +124,11 @@
           "type": "string",
           "minLength": 1,
           "description": "Repository name with source casing preserved."
+        },
+        "details_path": {
+          "type": "string",
+          "pattern": "^repos/x-[a-z2-7]+/x-[a-z2-7]+\\.json$",
+          "description": "Portable relative path to this repository's detail document. Path components are lowercase unpadded Base32 encodings of the UTF-8 owner and repository names, prefixed with x-."
         },
         "contributions": {
           "$ref": "#/$defs/repositoryContributions"

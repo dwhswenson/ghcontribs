@@ -9,6 +9,7 @@
         {
           "key": "AlphaOrg/large-project",
           "name": "large-project",
+          "details_path": "repos/x-ifwha2dbj5zgo/x-nrqxez3ffvyhe33kmvrxi.json",
           "contributions": {
             "total": { "issues": 8, "pull_requests": 5, "reviews": 3, "comments": 13 },
             "by_month": {
@@ -20,6 +21,7 @@
         {
           "key": "AlphaOrg/small-project",
           "name": "small-project",
+          "details_path": "repos/x-ifwha2dbj5zgo/x-onwwc3dmfvyhe33kmvrxi.json",
           "contributions": {
             "total": { "issues": 1, "pull_requests": 1, "reviews": 0, "comments": 1 },
             "by_month": {
@@ -35,6 +37,7 @@
         {
           "key": "LongExampleOrganization/repository-with-a-long-name",
           "name": "repository-with-a-long-name",
+          "details_path": "repos/x-jrxw4z2fpbqw24dmmvhxez3bnzuxuylunfxw4/x-ojsxa33tnf2g64tzfv3ws5difvqs23dpnzts23tbnvsq.json",
           "contributions": {
             "total": { "issues": 2, "pull_requests": 4, "reviews": 6, "comments": 8 },
             "by_month": {

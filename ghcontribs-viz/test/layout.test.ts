@@ -19,6 +19,7 @@ const index: VisualizationIndex = {
         {
           key: 'Alpha/large',
           name: 'large',
+          details_path: 'repos/x-alpha/x-large.json',
           contributions: {
             total: { issues: 8, pull_requests: 0, reviews: 0, comments: 0 },
             by_month: {
@@ -29,6 +30,7 @@ const index: VisualizationIndex = {
         {
           key: 'Alpha/small',
           name: 'small',
+          details_path: 'repos/x-alpha/x-small.json',
           contributions: {
             total: { issues: 2, pull_requests: 0, reviews: 0, comments: 0 },
             by_month: {
@@ -44,6 +46,7 @@ const index: VisualizationIndex = {
         {
           key: 'Beta/zero',
           name: 'zero',
+          details_path: 'repos/x-beta/x-zero.json',
           contributions: {
             total: { issues: 0, pull_requests: 0, reviews: 0, comments: 0 },
             by_month: {},
@@ -232,6 +235,7 @@ describe('layoutEcosystem', () => {
         repositories: Array.from({ length: 8 }, (_, repositoryIndex) => ({
           key: `Owner-${ownerIndex.toString().padStart(2, '0')}/repo-${repositoryIndex}`,
           name: `repo-${repositoryIndex}`,
+          details_path: `repos/x-owner-${ownerIndex}/x-repo-${repositoryIndex}.json`,
           contributions: {
             total: {
               issues: repositoryIndex === 0 ? 1000 : 1,

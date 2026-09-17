@@ -78,6 +78,10 @@ def populated_index(counts):
                     {
                         'key': 'ExampleOrg/example-repo',
                         'name': 'example-repo',
+                        'details_path': (
+                            'repos/x-iv4gc3lqnrsu64th/'
+                            'x-mv4gc3lqnrss24tfobxq.json'
+                        ),
                         'contributions': {
                             'total': counts,
                             'by_month': {
@@ -164,6 +168,10 @@ def test_empty_and_zero_valued_index_is_valid(index_validator):
                         {
                             'key': 'ExampleOrg/example-repo',
                             'name': 'example-repo',
+                            'details_path': (
+                                'repos/x-iv4gc3lqnrsu64th/'
+                                'x-mv4gc3lqnrss24tfobxq.json'
+                            ),
                             'contributions': {
                                 'total': {
                                     'issues': 0,
@@ -219,6 +227,9 @@ def _invalid_index(populated_index, mutation):
         lambda data: data['source'].update(first_month='2024-13'),
         lambda data: data['owners'][0]['repositories'][0].update(
             key='ExampleOrg/example-repo/extra'
+        ),
+        lambda data: data['owners'][0]['repositories'][0].update(
+            details_path='repos/CON/repository.json'
         ),
         lambda data: data['owners'][0]['repositories'][0][
             'contributions'
