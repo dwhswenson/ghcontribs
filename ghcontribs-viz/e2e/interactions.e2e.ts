@@ -40,6 +40,30 @@ test('opens repository details when a repository is clicked', async ({ page }) =
   await expect(page.locator('.ghc-details')).toHaveCount(0)
 })
 
+test('places details beside the ecosystem only when the mount is wide enough', async ({ page }) => {
+  const repository = page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  )
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await repository.click()
+  const ecosystem = page.locator('.ghc-ecosystem')
+  const details = page.locator('.ghc-details')
+  await expect(details).toBeVisible()
+  const wideEcosystem = await ecosystem.boundingBox()
+  const wideDetails = await details.boundingBox()
+  expect(wideEcosystem).not.toBeNull()
+  expect(wideDetails).not.toBeNull()
+  expect(wideDetails!.x).toBeGreaterThan(wideEcosystem!.x + wideEcosystem!.width)
+  expect(Math.abs(wideDetails!.y - wideEcosystem!.y)).toBeLessThan(2)
+
+  await page.setViewportSize({ width: 900, height: 900 })
+  const narrowSummary = await page.locator('.ghc-summary').boundingBox()
+  const narrowDetails = await details.boundingBox()
+  expect(narrowSummary).not.toBeNull()
+  expect(narrowDetails).not.toBeNull()
+  expect(narrowDetails!.y).toBeGreaterThanOrEqual(narrowSummary!.y + narrowSummary!.height)
+})
+
 test('opens details with keyboard and supports retry', async ({ page }) => {
   const repository = page.locator(
     '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
