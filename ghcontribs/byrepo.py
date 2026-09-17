@@ -297,12 +297,17 @@ def organize_contributions(
 ) -> None:
     """Build, validate, and transactionally install a visualization dataset."""
     input_path = Path(input_directory).resolve()
-    output_path = Path(output_directory)
-    if output_path.is_symlink():
-        raise ByRepoError(f'output directory must not be a symlink: {output_path}')
-    output_resolved = output_path.resolve(strict=False)
-    if _paths_overlap(input_path, output_resolved):
+    requested_output = Path(output_directory)
+    if requested_output.is_symlink():
+        raise ByRepoError(
+            f'output directory must not be a symlink: {requested_output}'
+        )
+    output_path = requested_output.resolve(strict=False)
+    if _paths_overlap(input_path, output_path):
         raise ByRepoError('input and output directories must not overlap')
+    working_directory = Path.cwd().resolve()
+    if output_path == working_directory or output_path in working_directory.parents:
+        raise ByRepoError('output directory must not contain the current working directory')
     if output_path.exists():
         if not output_path.is_dir():
             raise ByRepoError(f'output path is not a directory: {output_path}')
@@ -353,6 +358,10 @@ def organize_contributions(
 
         lock = FileLock(parent / f'.{output_path.name}.lock')
         with lock:
+            if output_path.is_symlink():
+                raise ByRepoError(
+                    f'output directory must not be a symlink: {output_path}'
+                )
             if output_path.exists():
                 if not output_path.is_dir():
                     raise ByRepoError(

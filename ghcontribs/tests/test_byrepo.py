@@ -331,6 +331,60 @@ def test_rechecks_destination_after_build_before_unforced_install(tmp_path):
     assert not list(tmp_path.glob('.output.tmp-*'))
 
 
+def test_normalizes_destination_before_staging_and_install(tmp_path):
+    source = tmp_path / 'source'
+    output = tmp_path / 'output'
+    write_month(source, '2024-01', [issue()])
+
+    organize_contributions(
+        'octocat', source, tmp_path / 'intermediate' / '..' / 'output'
+    )
+
+    assert (output / 'index.json').is_file()
+    assert not (tmp_path / 'intermediate').exists()
+
+
+def test_rejects_current_working_directory_as_output(tmp_path, monkeypatch):
+    source = tmp_path / 'source'
+    output = tmp_path / 'output'
+    write_month(source, '2024-01', [issue()])
+    output.mkdir()
+    monkeypatch.chdir(output)
+
+    with pytest.raises(ByRepoError, match='current working directory'):
+        organize_contributions('octocat', source, '.', force=True)
+
+    assert output.is_dir()
+    assert not list(tmp_path.glob('.output.tmp-*'))
+
+
+def test_rejects_symlink_created_during_build(tmp_path):
+    source = tmp_path / 'source'
+    output = tmp_path / 'output'
+    target = tmp_path / 'target'
+    write_month(source, '2024-01', [issue()])
+    target.mkdir()
+    (target / 'sentinel.txt').write_text('keep me')
+    real_build_dataset = build_dataset
+
+    def create_symlink_during_build(*args, **kwargs):
+        result = real_build_dataset(*args, **kwargs)
+        output.symlink_to(target, target_is_directory=True)
+        return result
+
+    with patch(
+        'ghcontribs.byrepo.build_dataset',
+        side_effect=create_symlink_during_build,
+    ):
+        with pytest.raises(ByRepoError, match='must not be a symlink'):
+            organize_contributions('octocat', source, output, force=True)
+
+    assert output.is_symlink()
+    assert (target / 'sentinel.txt').read_text() == 'keep me'
+    assert not list(tmp_path.glob('.output.backup-*'))
+    assert not list(tmp_path.glob('.output.tmp-*'))
+
+
 def test_installations_for_same_output_are_serialized(tmp_path):
     source = tmp_path / 'source'
     output = tmp_path / 'output'
