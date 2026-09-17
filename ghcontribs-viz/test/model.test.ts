@@ -15,6 +15,7 @@ const index: VisualizationIndex = {
         {
           key: 'FirstOwner/alpha',
           name: 'alpha',
+          details_path: 'repos/x-first/x-alpha.json',
           contributions: {
             total: { issues: 3, pull_requests: 2, reviews: 1, comments: 4 },
             by_month: {
@@ -26,6 +27,7 @@ const index: VisualizationIndex = {
         {
           key: 'FirstOwner/beta',
           name: 'beta',
+          details_path: 'repos/x-first/x-beta.json',
           contributions: {
             total: { issues: 0, pull_requests: 1, reviews: 2, comments: 0 },
             by_month: {
@@ -41,6 +43,7 @@ const index: VisualizationIndex = {
         {
           key: 'SecondOwner/gamma',
           name: 'gamma',
+          details_path: 'repos/x-second/x-gamma.json',
           contributions: {
             total: { issues: 1, pull_requests: 0, reviews: 0, comments: 1 },
             by_month: {
@@ -92,6 +95,9 @@ describe('VisualizationModel', () => {
       'FirstOwner/alpha',
       'FirstOwner/beta',
     ])
+    expect(snapshot.owners[0]?.repositories[0]?.detailsPath).toBe(
+      'repos/x-first/x-alpha.json',
+    )
     expect(snapshot.owners[0]?.counts).toEqual({
       issues: 3,
       pull_requests: 3,

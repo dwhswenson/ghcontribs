@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "user": "octocat",
+  "source": {
+    "first_month": "2024-01",
+    "last_month": "2024-02"
+  },
+  "owners": [
+    {
+      "owner": "ExampleOrg",
+      "repositories": [
+        {
+          "key": "ExampleOrg/alpha",
+          "name": "alpha",
+          "details_path": "repos/x-iv4gc3lqnrsu64th/x-mfwha2db.json",
+          "contributions": {
+            "total": {
+              "issues": 1,
+              "pull_requests": 0,
+              "reviews": 0,
+              "comments": 0
+            },
+            "by_month": {
+              "2024-01": {
+                "issues": 1,
+                "pull_requests": 0,
+                "reviews": 0,
+                "comments": 0
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "owner": "Personal",
+      "repositories": [
+        {
+          "key": "Personal/beta",
+          "name": "beta",
+          "details_path": "repos/x-kbsxe43pnzqwy/x-mjsxiyi.json",
+          "contributions": {
+            "total": {
+              "issues": 0,
+              "pull_requests": 1,
+              "reviews": 0,
+              "comments": 0
+            },
+            "by_month": {
+              "2024-01": {
+                "issues": 0,
+                "pull_requests": 1,
+                "reviews": 0,
+                "comments": 0
+              }
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

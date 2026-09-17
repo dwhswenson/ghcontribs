@@ -25,6 +25,7 @@ export interface RepositoryViewModel {
   readonly key: string
   readonly owner: string
   readonly name: string
+  readonly detailsPath: string
   readonly counts: Readonly<ContributionCounts>
   readonly totalContributions: number
   readonly weight: number
@@ -146,6 +147,7 @@ export class VisualizationModel {
             key: repository.key,
             owner: owner.owner,
             name: repository.name,
+            detailsPath: repository.details_path,
             counts: freezeCounts(counts),
             totalContributions: repositoryTotal,
             weight,

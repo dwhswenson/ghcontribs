@@ -24,9 +24,7 @@ describe.runIf(datasetDirectory)('generated visualization data', () => {
       for (const repository of owner.repositories) {
         const detailPath = join(
           datasetDirectory!,
-          'repos',
-          owner.owner,
-          `${repository.name}.json`,
+          ...repository.details_path.split('/'),
         )
         const details = parseRepositoryDetails(
           JSON.parse(await readFile(detailPath, 'utf8')) as unknown,

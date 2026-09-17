@@ -57,6 +57,7 @@ export const validIndex: VisualizationIndex = {
         {
           key: 'ExampleOrg/example',
           name: 'example',
+          details_path: 'repos/x-iv4gc3lqnrsu64th/x-mv4gc3lqnrsq.json',
           contributions: {
             total: {
               issues: 1,

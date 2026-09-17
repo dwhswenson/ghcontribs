@@ -19,6 +19,7 @@ export interface RepositoryContributions {
 export interface RepositorySummary {
   key: string
   name: string
+  details_path: string
   contributions: RepositoryContributions
 }
 

@@ -1,0 +1,2 @@
+exclude ghcontribs/tests/authorization.py
+global-exclude __pycache__ *.py[cod]

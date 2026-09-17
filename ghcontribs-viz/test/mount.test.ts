@@ -15,6 +15,7 @@ function richerIndex(): VisualizationIndex {
   index.owners[0]!.repositories.push({
     key: 'ExampleOrg/secondary',
     name: 'secondary',
+    details_path: 'repos/x-iv4gc3lqnrsu64th/x-onswg33omrqxe6i.json',
     contributions: {
       total: { issues: 8, pull_requests: 0, reviews: 0, comments: 0 },
       by_month: {
@@ -32,6 +33,7 @@ function interactiveIndex(): VisualizationIndex {
     repositories: [{
       key: 'AnotherOrganizationWithALongName/another-long-repository-name',
       name: 'another-long-repository-name',
+      details_path: 'repos/x-owner/x-repository.json',
       contributions: {
         total: { issues: 2, pull_requests: 3, reviews: 0, comments: 1 },
         by_month: {
