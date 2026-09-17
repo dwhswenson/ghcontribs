@@ -170,18 +170,25 @@ export class InteractionController {
       return
     }
     if (element?.closest('[data-action="overview"]') !== null) {
+      this.#onRepositorySelect(null)
       this.focusOwner(null, true)
       return
     }
     const target = targetFromElement(this.#target, element)
-    if (target?.kind === 'repository') this.#onRepositorySelect(target.key)
+    if (target?.kind === 'repository') this.#activateRepository(target)
     else if (target !== null) this.focusOwner(target.owner, true)
+  }
+
+  #activateRepository(target: Extract<InteractionTarget, { kind: 'repository' }>): void {
+    this.focusOwner(target.owner, true)
+    this.#onRepositorySelect(target.key)
   }
 
   #handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
       if (this.focusedOwner === null) return
       event.preventDefault()
+      this.#onRepositorySelect(null)
       this.focusOwner(null, true)
       return
     }
@@ -192,7 +199,7 @@ export class InteractionController {
     const currentTarget = targetForInteractiveElement(current)
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      if (currentTarget.kind === 'repository') this.#onRepositorySelect(currentTarget.key)
+      if (currentTarget.kind === 'repository') this.#activateRepository(currentTarget)
       else this.focusOwner(currentTarget.owner, true)
       return
     }
