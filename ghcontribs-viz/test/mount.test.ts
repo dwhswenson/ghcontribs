@@ -224,7 +224,7 @@ describe('mountContributionEcosystem', () => {
     expect(document.activeElement).toBe(firstOwner)
   })
 
-  it('opens repository details without changing owner focus', async () => {
+  it('focuses the repository owner and opens details on activation', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(Response.json(interactiveIndex()))
       .mockResolvedValueOnce(Response.json(validDetails))
@@ -239,7 +239,8 @@ describe('mountContributionEcosystem', () => {
 
     expect(repository.getAttribute('role')).toBe('button')
     repository.click()
-    expect(target.querySelector('.ghc-owner--focus-target')).toBeNull()
+    expect(target.querySelector('.ghc-owner--focus-target')?.getAttribute('data-owner'))
+      .toBe('ExampleOrg')
     expect(target.querySelector('.ghc-details__title')?.textContent).toBe('ExampleOrg/example')
     expect(target.querySelector('.ghc-details__content')?.textContent).toContain('Loading')
     await flushPromises()
@@ -250,6 +251,10 @@ describe('mountContributionEcosystem', () => {
     }))
     expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(4)
     expect(fetcher).toHaveBeenCalledTimes(2)
+
+    target.querySelector<HTMLButtonElement>('.ghc-back')!.click()
+    expect(target.querySelector('.ghc-owner--focus-target')).toBeNull()
+    expect(target.querySelector('.ghc-details')).toBeNull()
   })
 
   it('renders all variants in order and reapplies filters from cached details', async () => {

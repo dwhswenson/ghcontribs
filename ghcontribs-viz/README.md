@@ -43,8 +43,8 @@ visualization.setRepositoryContributionWeighting(
 
 Hovering or focusing an owner or repository shows its filtered contribution
 summary. Use Tab to move between visible items, Enter or Space to focus an
-owner or open repository details, and Escape or the “Back to overview” button
-to return from owner focus. The detail panel follows the active contribution
+owner or open repository details. Activating a repository focuses its owner;
+Escape or “Back to overview” closes details and returns to the overview. The detail panel follows the active contribution
 type and month filters and caches successful loads.
 
 Consumers can also control semantic owner focus without moving DOM focus:

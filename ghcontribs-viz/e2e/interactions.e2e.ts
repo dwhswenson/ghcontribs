@@ -35,9 +35,25 @@ test('opens repository details when a repository is clicked', async ({ page }) =
     'LongExampleOrganization/repository-with-a-long-name',
   )
   await expect(page.locator('.ghc-details__item')).toHaveCount(4)
-  await expect(page.locator('.ghc-owner--focus-target')).toHaveCount(0)
+  await expect(page.locator('.ghc-owner--focus-target')).toHaveAttribute(
+    'data-owner', 'LongExampleOrganization',
+  )
   await page.locator('.ghc-details__close').click()
   await expect(page.locator('.ghc-details')).toHaveCount(0)
+  await expect(page.locator('.ghc-owner--focus-target')).toHaveAttribute(
+    'data-owner', 'LongExampleOrganization',
+  )
+})
+
+test('back to overview also closes repository details', async ({ page }) => {
+  const repository = page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  )
+  await repository.click()
+  await expect(page.locator('.ghc-details')).toBeVisible()
+  await page.locator('.ghc-back').click()
+  await expect(page.locator('.ghc-details')).toHaveCount(0)
+  await expect(page.locator('.ghc-owner--focus-target')).toHaveCount(0)
 })
 
 test('places details beside the ecosystem only when the mount is wide enough', async ({ page }) => {

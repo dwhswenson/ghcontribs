@@ -108,7 +108,7 @@ function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
     toolbar.className = 'ghc-toolbar'
     const toolbarHint = document.createElement('span')
     toolbarHint.className = 'ghc-toolbar__hint'
-    toolbarHint.textContent = 'Use Tab to explore; press Enter or Space to focus an owner.'
+    toolbarHint.textContent = 'Use Tab to explore; press Enter or Space to focus an owner or open repository details.'
     const backButton = document.createElement('button')
     backButton.type = 'button'
     backButton.className = 'ghc-back'
