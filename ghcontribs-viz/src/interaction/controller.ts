@@ -44,13 +44,22 @@ export class InteractionController {
   readonly #target: HTMLElement
   readonly #state = new InteractionState()
   readonly #onFocusedOwnerChange: () => void
+  readonly #onRepositorySelect: (key: string | null) => void
+  readonly #onDetailsRetry: () => void
   #snapshot: VisualizationSnapshot | null = null
   #restoreOwner: string | null = null
   #destroyed = false
 
-  constructor(target: HTMLElement, onFocusedOwnerChange: () => void) {
+  constructor(
+    target: HTMLElement,
+    onFocusedOwnerChange: () => void,
+    onRepositorySelect: (key: string | null) => void,
+    onDetailsRetry: () => void,
+  ) {
     this.#target = target
     this.#onFocusedOwnerChange = onFocusedOwnerChange
+    this.#onRepositorySelect = onRepositorySelect
+    this.#onDetailsRetry = onDetailsRetry
     target.addEventListener('pointerover', this.#handlePointerOver)
     target.addEventListener('pointerout', this.#handlePointerOut)
     target.addEventListener('focusin', this.#handleFocusIn)
@@ -152,12 +161,21 @@ export class InteractionController {
 
   #handleClick = (event: MouseEvent): void => {
     const element = event.target as Element | null
+    if (element?.closest('[data-action="close-details"]') !== null) {
+      this.#onRepositorySelect(null)
+      return
+    }
+    if (element?.closest('[data-action="retry-details"]') !== null) {
+      this.#onDetailsRetry()
+      return
+    }
     if (element?.closest('[data-action="overview"]') !== null) {
       this.focusOwner(null, true)
       return
     }
     const target = targetFromElement(this.#target, element)
-    if (target !== null) this.focusOwner(target.owner, true)
+    if (target?.kind === 'repository') this.#onRepositorySelect(target.key)
+    else if (target !== null) this.focusOwner(target.owner, true)
   }
 
   #handleKeyDown = (event: KeyboardEvent): void => {
@@ -174,7 +192,8 @@ export class InteractionController {
     const currentTarget = targetForInteractiveElement(current)
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault()
-      this.focusOwner(currentTarget.owner, true)
+      if (currentTarget.kind === 'repository') this.#onRepositorySelect(currentTarget.key)
+      else this.focusOwner(currentTarget.owner, true)
       return
     }
   }

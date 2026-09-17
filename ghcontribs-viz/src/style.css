@@ -37,6 +37,8 @@
 }
 
 .ghc-back:focus-visible,
+.ghc-details button:focus-visible,
+.ghc-details a:focus-visible,
 .ghc-owner__focus:focus-visible,
 .ghc-repository:focus-visible {
   outline: 3px solid #7dd3fc;
@@ -282,6 +284,79 @@
   font-size: 0.85rem;
 }
 
+.ghc-details {
+  margin-top: 0.7rem;
+  padding: 1rem;
+  border: 1px solid rgb(125 211 252 / 24%);
+  border-radius: 0.8rem;
+  background: #0f2330;
+}
+
+.ghc-details__header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.ghc-details__title {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: #f0f9ff;
+  font-size: 1rem;
+}
+
+.ghc-details__summary,
+.ghc-details__content {
+  color: #cbd5e1;
+  font-size: 0.85rem;
+}
+
+.ghc-details__summary {
+  margin: 0.5rem 0 1rem;
+}
+
+.ghc-details button {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid rgb(125 211 252 / 35%);
+  border-radius: 0.5rem;
+  color: #e0f2fe;
+  background: rgb(14 116 144 / 22%);
+  cursor: pointer;
+  font: inherit;
+}
+
+.ghc-details__list {
+  display: grid;
+  gap: 0.4rem;
+  max-height: 26rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.ghc-details__item {
+  display: grid;
+  grid-template-columns: 6rem minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.4rem;
+  background: rgb(255 255 255 / 5%);
+}
+
+.ghc-details__type,
+.ghc-details time {
+  color: #94a3b8;
+  font-size: 0.75rem;
+}
+
+.ghc-details a {
+  overflow-wrap: anywhere;
+  color: #7dd3fc;
+}
+
 .ghc-visually-hidden {
   position: absolute !important;
   width: 1px !important;
@@ -306,5 +381,14 @@
 
   .ghc-summary > .ghc-counts {
     min-width: 0;
+  }
+
+  .ghc-details__item {
+    grid-template-columns: 1fr auto;
+  }
+
+  .ghc-details__item a {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
