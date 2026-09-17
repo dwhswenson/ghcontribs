@@ -12,7 +12,8 @@ app.innerHTML = `
           An interactive map of contribution activity, grouped by repository owner.
           Tile area uses square-root scaling of activity across issues, pull requests,
           reviews, and comments. Hover or focus a tile for details; use Tab to move,
-          Enter or Space to focus an owner, and Escape to return to the overview.
+          Enter or Space to focus an owner or open repository details, and Escape
+          to return to the overview.
         </p>
       </div>
       <fieldset class="demo-size-control">
