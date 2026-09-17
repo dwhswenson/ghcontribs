@@ -25,19 +25,37 @@ test('shows equivalent repository detail for pointer and keyboard focus', async 
   await expect(summary).toContainText('2024-01 through 2024-02')
 })
 
-test('focuses an owner when one of its repositories is clicked', async ({ page }) => {
+test('opens repository details when a repository is clicked', async ({ page }) => {
   const repository = page.locator(
     '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
   )
 
   await repository.click()
-  await expect(page.locator('.ghc-owner--focus-target')).toHaveAttribute(
-    'data-owner', 'LongExampleOrganization',
+  await expect(page.locator('.ghc-details__title')).toHaveText(
+    'LongExampleOrganization/repository-with-a-long-name',
   )
-  await expect(page.locator('.ghc-back')).toBeVisible()
-  await expect(page.locator('.ghc-owner[data-owner="AlphaOrg"]')).toHaveClass(
-    /ghc-owner--focus-hidden/,
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  await expect(page.locator('.ghc-owner--focus-target')).toHaveCount(0)
+  await page.locator('.ghc-details__close').click()
+  await expect(page.locator('.ghc-details')).toHaveCount(0)
+})
+
+test('opens details with keyboard and supports retry', async ({ page }) => {
+  const repository = page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
   )
+  let attempts = 0
+  await page.route('**/repos/x-jrxw4z2fpbqw24dmmvhxez3bnzuxuylunfxw4/*.json', async (route) => {
+    attempts += 1
+    if (attempts === 1) await route.fulfill({ status: 503, body: 'Unavailable' })
+    else await route.continue()
+  })
+  await repository.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.ghc-details [role="alert"]')).toContainText('503')
+  await page.locator('[data-action="retry-details"]').click()
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  expect(attempts).toBe(2)
 })
 
 test('focuses an owner and restores focus on exit', async ({ page }) => {
@@ -84,6 +102,10 @@ test('keeps the ecosystem and summary usable on a mobile viewport', async ({ pag
   await expect(focusedOwner).toBeVisible()
   await expect.poll(async () => (await focusedOwner.boundingBox())?.width ?? 0)
     .toBeGreaterThan(300)
+
+  await page.locator('[data-repository-key="AlphaOrg/large-project"]').click()
+  await expect(page.locator('.ghc-details')).toBeVisible()
+  expect((await page.locator('.ghc-details').boundingBox())?.width).toBeLessThanOrEqual(390)
 })
 
 test('matches stable overview and focused-owner visuals', async ({ page }) => {
