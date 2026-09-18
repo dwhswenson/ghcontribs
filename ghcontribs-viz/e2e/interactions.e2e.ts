@@ -56,6 +56,26 @@ test('back to overview also closes repository details', async ({ page }) => {
   await expect(page.locator('.ghc-owner--focus-target')).toHaveCount(0)
 })
 
+test('keeps ecosystem geometry stable as repository details finish loading', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 900 })
+  await page.route('**/repos/x-jrxw4z2fpbqw24dmmvhxez3bnzuxuylunfxw4/*.json', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await route.continue()
+  })
+  await page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  ).click()
+  await expect(page.locator('.ghc-details__content')).toContainText('Loading')
+  const loadingHeight = await page.locator('.ghc-ecosystem').evaluate(
+    (element) => element.getBoundingClientRect().height,
+  )
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  const loadedHeight = await page.locator('.ghc-ecosystem').evaluate(
+    (element) => element.getBoundingClientRect().height,
+  )
+  expect(loadedHeight).toBeCloseTo(loadingHeight, 0)
+})
+
 test('places details beside the ecosystem only when the mount is wide enough', async ({ page }) => {
   const repository = page.locator(
     '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',

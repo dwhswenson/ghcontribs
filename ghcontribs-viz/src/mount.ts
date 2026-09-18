@@ -42,10 +42,13 @@ function measureLayout(element: HTMLElement): { width: number; height: number } 
   const ecosystem = element.querySelector<HTMLElement>('.ghc-ecosystem')
   const ecosystemWidth = ecosystem?.getBoundingClientRect().width ?? 0
   const width = Math.max(1, Math.round(ecosystemWidth || measuredWidth || DEFAULT_LAYOUT_WIDTH))
-  const visualization = element.querySelector<HTMLElement>('.ghc-visualization')
-  const measuredChromeHeight = ecosystem !== null && visualization !== null
-    ? visualization.offsetHeight - ecosystem.offsetHeight
-    : 0
+  const outerHeight = (node: HTMLElement | null): number => {
+    if (node === null) return 0
+    const style = window.getComputedStyle(node)
+    return node.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom)
+  }
+  const measuredChromeHeight = outerHeight(element.querySelector('.ghc-toolbar')) +
+    outerHeight(element.querySelector('.ghc-summary'))
   const chromeHeight = measuredChromeHeight > 0
     ? measuredChromeHeight
     : DEFAULT_VISUALIZATION_CHROME_HEIGHT
@@ -121,14 +124,14 @@ export function mountContributionEcosystem(
     })
   }
 
-  const selectRepository = (key: string | null): void => {
-    if (destroyed) return
+  const selectRepository = (key: string | null): boolean => {
+    if (destroyed) return false
     if (model === null) {
       pendingRepository = key
-      return
+      return false
     }
-    if (key !== null && findRepository(key) === undefined) return
-    if (key === selectedRepository) return
+    if (key !== null && findRepository(key) === undefined) return false
+    if (key === selectedRepository) return false
     const restoreFocus = key === null &&
       element.querySelector('.ghc-details')?.contains(document.activeElement) === true
     const previous = selectedRepository
@@ -144,6 +147,7 @@ export function mountContributionEcosystem(
     } else {
       startDetailsLoad()
     }
+    return true
   }
 
   const interaction = new InteractionController(
