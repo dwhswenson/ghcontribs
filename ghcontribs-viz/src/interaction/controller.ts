@@ -44,7 +44,7 @@ export class InteractionController {
   readonly #target: HTMLElement
   readonly #state = new InteractionState()
   readonly #onFocusedOwnerChange: () => void
-  readonly #onRepositorySelect: (key: string | null) => void
+  readonly #onRepositorySelect: (key: string | null) => boolean
   readonly #onDetailsRetry: () => void
   #snapshot: VisualizationSnapshot | null = null
   #restoreOwner: string | null = null
@@ -53,7 +53,7 @@ export class InteractionController {
   constructor(
     target: HTMLElement,
     onFocusedOwnerChange: () => void,
-    onRepositorySelect: (key: string | null) => void,
+    onRepositorySelect: (key: string | null) => boolean,
     onDetailsRetry: () => void,
   ) {
     this.#target = target
@@ -87,20 +87,22 @@ export class InteractionController {
     this.#renderInteraction()
   }
 
-  focusOwner(owner: string | null, restoreOnExit = false): void {
-    if (this.#destroyed) return
+  focusOwner(owner: string | null, restoreOnExit = false, deferRender = false): boolean {
+    if (this.#destroyed) return false
     if (
       owner !== null &&
       this.#snapshot !== null &&
       !this.#snapshot.owners.some((candidate) => candidate.owner === owner)
-    ) return
+    ) return false
 
     if (owner !== null && restoreOnExit) this.#restoreOwner = owner
     const previous = this.focusedOwner
     this.#state.setFocusedOwner(owner)
     this.#state.setHovered(null)
-    if (previous !== owner) this.#onFocusedOwnerChange()
-    else this.#renderInteraction()
+    if (!deferRender) {
+      if (previous !== owner) this.#onFocusedOwnerChange()
+      else this.#renderInteraction()
+    }
 
     if (owner === null && restoreOnExit && this.#restoreOwner !== null) {
       const ownerToRestore = this.#restoreOwner
@@ -109,6 +111,7 @@ export class InteractionController {
         this.#target.querySelectorAll<HTMLElement>('.ghc-owner__focus'),
       ).find((element) => element.dataset.owner === ownerToRestore)?.focus()
     }
+    return previous !== owner
   }
 
   destroy(): void {
@@ -180,8 +183,12 @@ export class InteractionController {
   }
 
   #activateRepository(target: Extract<InteractionTarget, { kind: 'repository' }>): void {
-    this.focusOwner(target.owner, true)
-    this.#onRepositorySelect(target.key)
+    const focusChanged = this.focusOwner(target.owner, true, true)
+    const selectionChanged = this.#onRepositorySelect(target.key)
+    if (!selectionChanged) {
+      if (focusChanged) this.#onFocusedOwnerChange()
+      else this.#renderInteraction()
+    }
   }
 
   #handleKeyDown = (event: KeyboardEvent): void => {

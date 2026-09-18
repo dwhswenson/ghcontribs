@@ -236,9 +236,11 @@ describe('mountContributionEcosystem', () => {
     const repository = target.querySelector<HTMLElement>(
       '[data-repository-key="ExampleOrg/example"]',
     )!
+    const measure = vi.spyOn(target, 'getBoundingClientRect')
 
     expect(repository.getAttribute('role')).toBe('button')
     repository.click()
+    expect(measure).toHaveBeenCalledOnce()
     expect(target.querySelector('.ghc-owner--focus-target')?.getAttribute('data-owner'))
       .toBe('ExampleOrg')
     expect(target.querySelector('.ghc-details__title')?.textContent).toBe('ExampleOrg/example')
