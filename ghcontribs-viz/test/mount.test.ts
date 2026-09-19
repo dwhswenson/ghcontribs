@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { VisualizationIndex } from '../src/data/types.ts'
 import { mountContributionEcosystem } from '../src/mount.ts'
+import { ownerLabelText } from '../src/render/ecosystem.ts'
 import { validDetails, validIndex } from './fixtures.ts'
 
 function flushPromises(): Promise<unknown> {
@@ -51,6 +52,12 @@ afterEach(() => {
 })
 
 describe('mountContributionEcosystem', () => {
+  it('keeps owner-name characters ahead of the ellipsis in narrow labels', () => {
+    expect(ownerLabelText('AnotherOrganizationWithALongName', 72)).toBe('Anot…')
+    expect(ownerLabelText('ExampleOrg', 80)).toBe('Examp…')
+    expect(ownerLabelText('omsf', 80)).toBe('omsf')
+  })
+
   it('renders loading state followed by owners, repositories, and complete counts', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json(validIndex)))
     const target = document.createElement('div')

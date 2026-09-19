@@ -83,7 +83,6 @@
 .ghc-controls button:focus-visible,
 .ghc-details button:focus-visible,
 .ghc-details a:focus-visible,
-.ghc-owner__focus:focus-visible,
 .ghc-repository:focus-visible {
   outline: 3px solid #7dd3fc;
   outline-offset: 3px;
@@ -359,6 +358,10 @@
   outline-offset: 2px;
 }
 
+.ghc-owner__focus:focus-visible {
+  outline: none;
+}
+
 .ghc-ecosystem {
   --ghc-layout-duration: 360ms;
   --ghc-layout-easing: cubic-bezier(0.22, 1, 0.36, 1);
@@ -432,7 +435,7 @@
   font-weight: 700;
   letter-spacing: 0.035em;
   line-height: 1;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -457,7 +460,7 @@
 }
 
 .ghc-owner__label--hidden {
-  visibility: hidden;
+  display: none;
 }
 
 .ghc-repository {

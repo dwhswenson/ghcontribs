@@ -14,6 +14,21 @@ const COUNT_LABELS: ReadonlyArray<{
   { key: 'comments', short: 'C', label: 'comments' },
 ]
 
+const MINIMUM_OWNER_LABEL_WIDTH = 72
+const MINIMUM_OWNER_LABEL_HEIGHT = 58
+const OWNER_LABEL_FIXED_WIDTH = 34
+const OWNER_LABEL_CHARACTER_WIDTH = 8
+
+export function ownerLabelText(ownerName: string, width: number): string {
+  const characterBudget = Math.max(
+    2,
+    Math.floor((width - OWNER_LABEL_FIXED_WIDTH) / OWNER_LABEL_CHARACTER_WIDTH),
+  )
+  return ownerName.length > characterBudget
+    ? `${ownerName.slice(0, characterBudget)}…`
+    : ownerName
+}
+
 function positionWithin(
   element: HTMLElement,
   rect: LayoutRect,
@@ -246,12 +261,13 @@ export function renderEcosystem(
     const ownerLabel = ownerFocus.querySelector<HTMLElement>(
       ':scope > .ghc-owner__label',
     )!
-    ownerLabel.textContent = ownerNameText
+    ownerLabel.textContent = ownerLabelText(ownerNameText, ownerLayout.width)
     ownerFocus.setAttribute('aria-label', `Focus ${ownerNameText}`)
     ownerFocus.setAttribute('aria-expanded', String(isFocusTarget))
     ownerLabel.classList.toggle(
       'ghc-owner__label--hidden',
-      ownerLayout.width < 72 || ownerLayout.height < 58,
+      ownerLayout.width < MINIMUM_OWNER_LABEL_WIDTH ||
+        ownerLayout.height < MINIMUM_OWNER_LABEL_HEIGHT,
     )
     const remainingRepositories = new Map(
       Array.from(

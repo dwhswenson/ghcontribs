@@ -5,6 +5,33 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.ghc-ecosystem--layout-ready')).toBeVisible()
 })
 
+test('keeps owner-name characters in every visible label', async ({ page }) => {
+  const labels = page.locator(
+    '.ghc-owner__label:not(.ghc-owner__label--hidden)',
+  )
+  const labelTexts = await labels.allTextContents()
+
+  expect(labelTexts.length).toBeGreaterThan(0)
+  for (const label of labelTexts) expect(label).toMatch(/[A-Za-z0-9]/)
+
+  const hiddenLabels = page.locator('.ghc-owner__label--hidden')
+  expect(await hiddenLabels.count()).toBeGreaterThan(0)
+  for (const label of await hiddenLabels.all()) {
+    await expect(label).toHaveCSS('display', 'none')
+  }
+})
+
+test('draws owner keyboard focus only around the outer owner region', async ({ page }) => {
+  const control = page.locator('.ghc-owner__focus').filter({ visible: true }).first()
+  const owner = control.locator('xpath=ancestor::section[contains(@class, "ghc-owner")]')
+
+  await control.focus()
+  await expect(control).toBeFocused()
+  await expect(control).toHaveCSS('outline-style', 'none')
+  await expect(owner).toHaveCSS('outline-style', 'solid')
+  await expect(owner).toHaveCSS('outline-width', '3px')
+})
+
 async function openFilters(page: import('@playwright/test').Page): Promise<void> {
   const trigger = page.locator('.ghc-filter-trigger')
   if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()
