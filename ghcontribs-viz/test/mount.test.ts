@@ -224,6 +224,30 @@ describe('mountContributionEcosystem', () => {
     expect(document.activeElement).toBe(firstOwner)
   })
 
+  it('closes programmatically selected repository details with Escape', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+    expect(target.querySelector('.ghc-owner--focus-target')).toBeNull()
+    const close = target.querySelector<HTMLButtonElement>('.ghc-details__close')!
+    close.focus()
+    const escapeEvent = new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true, cancelable: true,
+    })
+    close.dispatchEvent(escapeEvent)
+
+    expect(escapeEvent.defaultPrevented).toBe(true)
+    expect(target.querySelector('.ghc-details')).toBeNull()
+  })
+
   it('focuses the repository owner and opens details on activation', async () => {
     const fetcher = vi.fn()
       .mockResolvedValueOnce(Response.json(interactiveIndex()))

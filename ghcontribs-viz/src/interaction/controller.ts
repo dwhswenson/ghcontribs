@@ -193,10 +193,10 @@ export class InteractionController {
 
   #handleKeyDown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
-      if (this.focusedOwner === null) return
+      const selectionChanged = this.#onRepositorySelect(null)
+      if (this.focusedOwner === null && !selectionChanged) return
       event.preventDefault()
-      this.#onRepositorySelect(null)
-      this.focusOwner(null, true)
+      if (this.focusedOwner !== null) this.focusOwner(null, true)
       return
     }
     const current = (event.target as Element | null)?.closest<HTMLElement>(
