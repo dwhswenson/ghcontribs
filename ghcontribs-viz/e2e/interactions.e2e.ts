@@ -25,19 +25,97 @@ test('shows equivalent repository detail for pointer and keyboard focus', async 
   await expect(summary).toContainText('2024-01 through 2024-02')
 })
 
-test('focuses an owner when one of its repositories is clicked', async ({ page }) => {
+test('opens repository details when a repository is clicked', async ({ page }) => {
   const repository = page.locator(
     '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
   )
 
   await repository.click()
+  await expect(page.locator('.ghc-details__title')).toHaveText(
+    'LongExampleOrganization/repository-with-a-long-name',
+  )
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
   await expect(page.locator('.ghc-owner--focus-target')).toHaveAttribute(
     'data-owner', 'LongExampleOrganization',
   )
-  await expect(page.locator('.ghc-back')).toBeVisible()
-  await expect(page.locator('.ghc-owner[data-owner="AlphaOrg"]')).toHaveClass(
-    /ghc-owner--focus-hidden/,
+  await page.locator('.ghc-details__close').click()
+  await expect(page.locator('.ghc-details')).toHaveCount(0)
+  await expect(page.locator('.ghc-owner--focus-target')).toHaveAttribute(
+    'data-owner', 'LongExampleOrganization',
   )
+})
+
+test('back to overview also closes repository details', async ({ page }) => {
+  const repository = page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  )
+  await repository.click()
+  await expect(page.locator('.ghc-details')).toBeVisible()
+  await page.locator('.ghc-back').click()
+  await expect(page.locator('.ghc-details')).toHaveCount(0)
+  await expect(page.locator('.ghc-owner--focus-target')).toHaveCount(0)
+})
+
+test('keeps ecosystem geometry stable as repository details finish loading', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 900 })
+  await page.route('**/repos/x-jrxw4z2fpbqw24dmmvhxez3bnzuxuylunfxw4/*.json', async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await route.continue()
+  })
+  await page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  ).click()
+  await expect(page.locator('.ghc-details__content')).toContainText('Loading')
+  const loadingHeight = await page.locator('.ghc-ecosystem').evaluate(
+    (element) => element.getBoundingClientRect().height,
+  )
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  const loadedHeight = await page.locator('.ghc-ecosystem').evaluate(
+    (element) => element.getBoundingClientRect().height,
+  )
+  expect(loadedHeight).toBeCloseTo(loadingHeight, 0)
+})
+
+test('places details beside the ecosystem only when the mount is wide enough', async ({ page }) => {
+  const repository = page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  )
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await repository.click()
+  const ecosystem = page.locator('.ghc-ecosystem')
+  const details = page.locator('.ghc-details')
+  await expect(details).toBeVisible()
+  const wideEcosystem = await ecosystem.boundingBox()
+  const wideDetails = await details.boundingBox()
+  expect(wideEcosystem).not.toBeNull()
+  expect(wideDetails).not.toBeNull()
+  expect(wideDetails!.x).toBeGreaterThan(wideEcosystem!.x + wideEcosystem!.width)
+  expect(Math.abs(wideDetails!.y - wideEcosystem!.y)).toBeLessThan(2)
+
+  await page.setViewportSize({ width: 900, height: 900 })
+  const narrowSummary = await page.locator('.ghc-summary').boundingBox()
+  const narrowDetails = await details.boundingBox()
+  expect(narrowSummary).not.toBeNull()
+  expect(narrowDetails).not.toBeNull()
+  expect(narrowDetails!.y).toBeGreaterThanOrEqual(narrowSummary!.y + narrowSummary!.height)
+})
+
+test('opens details with keyboard and supports retry', async ({ page }) => {
+  const repository = page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  )
+  let attempts = 0
+  await page.route('**/repos/x-jrxw4z2fpbqw24dmmvhxez3bnzuxuylunfxw4/*.json', async (route) => {
+    attempts += 1
+    if (attempts === 1) await route.fulfill({ status: 503, body: 'Unavailable' })
+    else await route.continue()
+  })
+  await repository.focus()
+  await page.keyboard.press('Enter')
+  await expect(page.locator('.ghc-details [role="alert"]')).toContainText('503')
+  await page.locator('[data-action="retry-details"]').click()
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  expect(attempts).toBe(2)
 })
 
 test('focuses an owner and restores focus on exit', async ({ page }) => {
@@ -84,6 +162,10 @@ test('keeps the ecosystem and summary usable on a mobile viewport', async ({ pag
   await expect(focusedOwner).toBeVisible()
   await expect.poll(async () => (await focusedOwner.boundingBox())?.width ?? 0)
     .toBeGreaterThan(300)
+
+  await page.locator('[data-repository-key="AlphaOrg/large-project"]').click()
+  await expect(page.locator('.ghc-details')).toBeVisible()
+  expect((await page.locator('.ghc-details').boundingBox())?.width).toBeLessThanOrEqual(390)
 })
 
 test('matches stable overview and focused-owner visuals', async ({ page }) => {

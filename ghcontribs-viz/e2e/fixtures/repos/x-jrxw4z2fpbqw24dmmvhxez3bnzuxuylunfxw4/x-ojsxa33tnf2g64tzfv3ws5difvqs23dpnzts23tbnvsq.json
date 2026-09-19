@@ -1,0 +1,58 @@
+{
+  "schema_version": 1,
+  "key": "LongExampleOrganization/repository-with-a-long-name",
+  "owner": "LongExampleOrganization",
+  "name": "repository-with-a-long-name",
+  "contributions": [
+    {
+      "url": "https://github.com/LongExampleOrganization/repository-with-a-long-name/issues/1",
+      "created": "2024-01-01T12:00:00+00:00",
+      "contrib_type": "issue",
+      "owner": "LongExampleOrganization",
+      "repo": "repository-with-a-long-name",
+      "number": 1,
+      "title": "An issue"
+    },
+    {
+      "url": "https://github.com/LongExampleOrganization/repository-with-a-long-name/pull/2",
+      "created": "2024-01-02T12:00:00+00:00",
+      "contrib_type": "pullRequest",
+      "owner": "LongExampleOrganization",
+      "repo": "repository-with-a-long-name",
+      "number": 2,
+      "title": "A pull request",
+      "merged": true,
+      "closes": []
+    },
+    {
+      "url": "https://github.com/LongExampleOrganization/repository-with-a-long-name/pull/2#pullrequestreview-1",
+      "created": "2024-02-03T12:00:00+00:00",
+      "contrib_type": "pullRequestReview",
+      "pr": {
+        "url": "https://github.com/LongExampleOrganization/repository-with-a-long-name/pull/2",
+        "created": "2024-01-02T12:00:00+00:00",
+        "contrib_type": "pullRequest",
+        "owner": "LongExampleOrganization",
+        "repo": "repository-with-a-long-name",
+        "number": 2,
+        "title": "A pull request",
+        "merged": true,
+        "closes": []
+      }
+    },
+    {
+      "url": "https://github.com/LongExampleOrganization/repository-with-a-long-name/issues/1#issuecomment-1",
+      "created": "2024-02-04T12:00:00+00:00",
+      "contrib_type": "issueComment",
+      "issue_or_pr": {
+        "url": "https://github.com/LongExampleOrganization/repository-with-a-long-name/issues/1",
+        "created": "2024-01-01T12:00:00+00:00",
+        "contrib_type": "issue",
+        "owner": "LongExampleOrganization",
+        "repo": "repository-with-a-long-name",
+        "number": 1,
+        "title": "An issue"
+      }
+    }
+  ]
+}

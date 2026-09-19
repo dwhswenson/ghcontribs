@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { VisualizationIndex } from '../src/data/types.ts'
 import { mountContributionEcosystem } from '../src/mount.ts'
-import { validIndex } from './fixtures.ts'
+import { validDetails, validIndex } from './fixtures.ts'
 
 function flushPromises(): Promise<unknown> {
   return new Promise((resolve) => setTimeout(resolve, 0))
@@ -224,8 +224,35 @@ describe('mountContributionEcosystem', () => {
     expect(document.activeElement).toBe(firstOwner)
   })
 
-  it('focuses a repository owner when the repository is activated', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => Response.json(interactiveIndex())))
+  it('closes programmatically selected repository details with Escape', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+    expect(target.querySelector('.ghc-owner--focus-target')).toBeNull()
+    const close = target.querySelector<HTMLButtonElement>('.ghc-details__close')!
+    close.focus()
+    const escapeEvent = new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true, cancelable: true,
+    })
+    close.dispatchEvent(escapeEvent)
+
+    expect(escapeEvent.defaultPrevented).toBe(true)
+    expect(target.querySelector('.ghc-details')).toBeNull()
+  })
+
+  it('focuses the repository owner and opens details on activation', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(interactiveIndex()))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
     const target = document.createElement('div')
     document.body.append(target)
     mountContributionEcosystem(target, { dataUrl: '/index.json' })
@@ -233,23 +260,138 @@ describe('mountContributionEcosystem', () => {
     const repository = target.querySelector<HTMLElement>(
       '[data-repository-key="ExampleOrg/example"]',
     )!
+    const measure = vi.spyOn(target, 'getBoundingClientRect')
 
     expect(repository.getAttribute('role')).toBe('button')
     repository.click()
-    expect(target.querySelector('[data-owner="ExampleOrg"]')?.classList).toContain(
-      'ghc-owner--focus-target',
-    )
-    expect(
-      target.querySelector('[data-owner="AnotherOrganizationWithALongName"]')
-        ?.getAttribute('aria-hidden'),
-    ).toBe('true')
+    expect(measure).toHaveBeenCalledOnce()
+    expect(target.querySelector('.ghc-owner--focus-target')?.getAttribute('data-owner'))
+      .toBe('ExampleOrg')
+    expect(target.querySelector('.ghc-details__title')?.textContent).toBe('ExampleOrg/example')
+    expect(target.querySelector('.ghc-details__content')?.textContent).toContain('Loading')
+    await flushPromises()
+    expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(4)
 
     repository.dispatchEvent(new KeyboardEvent('keydown', {
       key: ' ', bubbles: true, cancelable: true,
     }))
-    expect(target.querySelector('[data-owner="ExampleOrg"]')?.classList).toContain(
-      'ghc-owner--focus-target',
-    )
+    expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(4)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+
+    target.querySelector<HTMLButtonElement>('.ghc-back')!.click()
+    expect(target.querySelector('.ghc-owner--focus-target')).toBeNull()
+    expect(target.querySelector('.ghc-details')).toBeNull()
+  })
+
+  it('renders all variants in order and reapplies filters from cached details', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/data/index.json' })
+    await flushPromises()
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+    expect(Array.from(target.querySelectorAll('.ghc-details__type')).map((item) => item.textContent))
+      .toEqual(['Issue', 'Pull request', 'Review', 'Comment'])
+    expect(target.querySelector('.ghc-details__item:nth-child(3) a')?.textContent)
+      .toContain('PR #2 A pull request')
+    expect(target.querySelector('.ghc-details__item:nth-child(4) a')?.textContent)
+      .toContain('Issue #1 An issue')
+    controller.setContributionTypes(['reviews'])
+    expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(1)
+    controller.setMonthRange({ from: '2024-02', through: '2024-02' })
+    expect(target.querySelector('.ghc-details__content')?.textContent)
+      .toContain('No contributions match')
+    controller.selectRepository(null)
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('applies repository selection requested before the index loads', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+    expect(target.querySelector('.ghc-details__title')?.textContent).toBe('ExampleOrg/example')
+    controller.selectRepository(null)
+    window.dispatchEvent(new Event('resize'))
+    await flushPromises()
+    expect(target.querySelector('.ghc-details')).toBeNull()
+  })
+
+  it('shows retryable failure and ignores an obsolete response', async () => {
+    let resolveFirst!: (response: Response) => void
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(richerIndex()))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveFirst = resolve }))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    controller.selectRepository('ExampleOrg/example')
+    controller.selectRepository('ExampleOrg/secondary')
+    await flushPromises()
+    expect(target.querySelector('.ghc-details__content')?.textContent).toContain('503')
+    resolveFirst(Response.json(validDetails))
+    await flushPromises()
+    expect(target.querySelector('.ghc-details__title')?.textContent).toBe('ExampleOrg/secondary')
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+    expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(4)
+  })
+
+  it('retries a failed detail request and restores focus on close', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(new Response(null, { status: 503 }))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const tile = target.querySelector<HTMLElement>('.ghc-repository')!
+    tile.focus()
+    tile.click()
+    await flushPromises()
+    expect(target.querySelector('[role="alert"]')?.textContent).toContain('503')
+    target.querySelector<HTMLButtonElement>('[data-action="retry-details"]')!.click()
+    await flushPromises()
+    expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(4)
+    const close = target.querySelector<HTMLButtonElement>('.ghc-details__close')!
+    close.focus()
+    close.click()
+    expect(target.querySelector('.ghc-details')).toBeNull()
+    expect(document.activeElement).toBe(tile)
+  })
+
+  it('ignores a detail response after destruction', async () => {
+    let resolveDetails!: (response: Response) => void
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveDetails = resolve }))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    controller.selectRepository('ExampleOrg/example')
+    controller.destroy()
+    resolveDetails(Response.json(validDetails))
+    await flushPromises()
+    expect(target.childElementCount).toBe(0)
   })
 
   it('supports pending and loaded semantic owner focus with unknown owners ignored', async () => {
