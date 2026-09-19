@@ -93,12 +93,39 @@ function createRepositoryElement(key: string): HTMLElement {
 export interface EcosystemElements {
   readonly shell: HTMLElement
   readonly toolbar: HTMLElement
+  readonly controls: HTMLElement
+  readonly filterTrigger: HTMLButtonElement
   readonly backButton: HTMLButtonElement
   readonly ecosystem: HTMLElement
   readonly summary: HTMLElement
+  readonly sidebar: HTMLElement
 }
 
-function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
+function createFilterTrigger(): HTMLButtonElement {
+  const button = document.createElement('button')
+  button.type = 'button'
+  button.className = 'ghc-filter-trigger'
+  button.dataset.action = 'toggle-filters'
+  button.setAttribute('aria-expanded', 'false')
+  button.setAttribute('aria-label', 'Filters')
+  const icon = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  icon.classList.add('ghc-filter-trigger__icon')
+  icon.setAttribute('viewBox', '0 0 24 24')
+  icon.setAttribute('aria-hidden', 'true')
+  const path = document.createElementNS('http://www.w3.org/2000/svg', 'path')
+  path.setAttribute('d', 'M4 5h16l-6.3 7.1v5.4l-3.4 1.7v-7.1L4 5Z')
+  icon.append(path)
+  const label = document.createElement('span')
+  label.className = 'ghc-filter-trigger__label'
+  label.textContent = 'Filters'
+  const indicator = document.createElement('span')
+  indicator.className = 'ghc-filter-trigger__indicator'
+  indicator.setAttribute('aria-hidden', 'true')
+  button.append(icon, label, indicator)
+  return button
+}
+
+export function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
   let shell = target.querySelector<HTMLElement>(':scope > .ghc-visualization')
   if (shell === null) {
     shell = document.createElement('div')
@@ -115,7 +142,12 @@ function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
     backButton.dataset.action = 'overview'
     backButton.textContent = 'Back to overview'
     backButton.hidden = true
-    toolbar.append(toolbarHint, backButton)
+    const filterTrigger = createFilterTrigger()
+    toolbar.append(toolbarHint, backButton, filterTrigger)
+
+    const controls = document.createElement('form')
+    controls.className = 'ghc-controls'
+    controls.addEventListener('submit', (event) => event.preventDefault())
 
     const ecosystem = document.createElement('div')
     ecosystem.className = 'ghc-ecosystem'
@@ -126,16 +158,42 @@ function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
     summary.setAttribute('aria-label', 'Contribution summary')
     summary.setAttribute('aria-live', 'polite')
     summary.setAttribute('aria-atomic', 'true')
-    shell.append(toolbar, ecosystem, summary)
+    const sidebar = document.createElement('aside')
+    sidebar.className = 'ghc-sidebar'
+    sidebar.hidden = true
+    shell.append(toolbar, controls, ecosystem, summary, sidebar)
     target.replaceChildren(shell)
+  }
+
+  let controls = shell.querySelector<HTMLElement>('.ghc-controls')
+  if (controls === null) {
+    controls = document.createElement('form')
+    controls.className = 'ghc-controls'
+    controls.addEventListener('submit', (event) => event.preventDefault())
+    shell.querySelector(':scope > .ghc-ecosystem')!.before(controls)
+  }
+  let filterTrigger = shell.querySelector<HTMLButtonElement>('.ghc-filter-trigger')
+  if (filterTrigger === null) {
+    filterTrigger = createFilterTrigger()
+    shell.querySelector<HTMLElement>(':scope > .ghc-toolbar')!.append(filterTrigger)
+  }
+  let sidebar = shell.querySelector<HTMLElement>(':scope > .ghc-sidebar')
+  if (sidebar === null) {
+    sidebar = document.createElement('aside')
+    sidebar.className = 'ghc-sidebar'
+    sidebar.hidden = true
+    shell.append(sidebar)
   }
 
   return {
     shell,
     toolbar: shell.querySelector<HTMLElement>(':scope > .ghc-toolbar')!,
+    controls,
+    filterTrigger,
     backButton: shell.querySelector<HTMLButtonElement>('.ghc-back')!,
     ecosystem: shell.querySelector<HTMLElement>(':scope > .ghc-ecosystem')!,
     summary: shell.querySelector<HTMLElement>(':scope > .ghc-summary')!,
+    sidebar,
   }
 }
 
@@ -321,7 +379,7 @@ export function renderInteraction(
   )
   meta.textContent = `${snapshot.monthRange.from} through ${snapshot.monthRange.through} · ${
     typeNames.length === 0 ? 'no contribution types selected' : typeNames.join(', ')
-  }`
+  }${snapshot.hasContributions ? '' : ' · No contributions match the active filters.'}`
   elements.summary.replaceChildren(heading, meta, countList(counts))
 }
 

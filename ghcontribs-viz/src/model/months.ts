@@ -7,6 +7,12 @@ export interface MonthRange {
 
 const MONTH_PATTERN = /^(\d{4})-(\d{2})$/
 
+function monthParts(month: Month): { year: number; monthIndex: number } {
+  assertMonth(month)
+  const [year, monthNumber] = month.split('-').map(Number)
+  return { year: year!, monthIndex: monthNumber! - 1 }
+}
+
 export function assertMonth(value: string, label = 'month'): asserts value is Month {
   const match = MONTH_PATTERN.exec(value)
   if (match === null) {
@@ -60,4 +66,47 @@ export function isCompleteMonthRange(
   source: MonthRange,
 ): boolean {
   return range.from === source.from && range.through === source.through
+}
+
+export function monthOffset(month: Month, source: MonthRange): number {
+  const validated = validateMonthRange({ from: month, through: month }, source)
+  const value = monthParts(validated.from)
+  const first = monthParts(source.from)
+  return (value.year - first.year) * 12 + value.monthIndex - first.monthIndex
+}
+
+export function monthFromOffset(offset: number, source: MonthRange): Month {
+  if (!Number.isInteger(offset)) {
+    throw new RangeError(`month offset must be an integer: ${String(offset)}`)
+  }
+  const count = monthSpan(source)
+  if (offset < 0 || offset >= count) {
+    throw new RangeError(`month offset must be between 0 and ${count - 1}: ${offset}`)
+  }
+  const first = monthParts(source.from)
+  const absoluteMonth = first.year * 12 + first.monthIndex + offset
+  const year = Math.floor(absoluteMonth / 12)
+  const monthNumber = absoluteMonth % 12 + 1
+  return `${String(year).padStart(4, '0')}-${String(monthNumber).padStart(2, '0')}`
+}
+
+export function monthSpan(source: MonthRange): number {
+  const validated = validateMonthRange(source, source)
+  const first = monthParts(validated.from)
+  const last = monthParts(validated.through)
+  return (last.year - first.year) * 12 + last.monthIndex - first.monthIndex + 1
+}
+
+const MONTH_FORMATTER = new Intl.DateTimeFormat('en-US', {
+  month: 'long',
+  year: 'numeric',
+  timeZone: 'UTC',
+})
+
+export function formatMonth(month: Month): string {
+  const { year, monthIndex } = monthParts(month)
+  const date = new Date(0)
+  date.setUTCFullYear(year, monthIndex, 1)
+  date.setUTCHours(0, 0, 0, 0)
+  return MONTH_FORMATTER.format(date)
 }

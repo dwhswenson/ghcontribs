@@ -2,8 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   assertMonth,
+  formatMonth,
   isCompleteMonthRange,
+  monthFromOffset,
   monthIsInRange,
+  monthOffset,
+  monthSpan,
   sourceMonthRange,
   validateMonthRange,
 } from '../src/model/months.ts'
@@ -60,5 +64,37 @@ describe('month utilities', () => {
     expect(
       isCompleteMonthRange({ from: '2024-02', through: '2024-12' }, source),
     ).toBe(false)
+  })
+
+  it('maps inclusive month offsets across calendar years', () => {
+    const range = { from: '2023-12', through: '2025-01' }
+    expect(monthSpan(range)).toBe(14)
+    expect(monthOffset('2023-12', range)).toBe(0)
+    expect(monthOffset('2024-01', range)).toBe(1)
+    expect(monthOffset('2025-01', range)).toBe(13)
+    expect(monthFromOffset(0, range)).toBe('2023-12')
+    expect(monthFromOffset(1, range)).toBe('2024-01')
+    expect(monthFromOffset(13, range)).toBe('2025-01')
+  })
+
+  it('round trips every month in a long source range', () => {
+    const range = { from: '2013-01', through: '2026-08' }
+    for (let offset = 0; offset < monthSpan(range); offset += 1) {
+      expect(monthOffset(monthFromOffset(offset, range), range)).toBe(offset)
+    }
+  })
+
+  it('formats months with stable UTC English labels', () => {
+    expect(formatMonth('2024-01')).toBe('January 2024')
+    expect(formatMonth('2024-12')).toBe('December 2024')
+  })
+
+  it.each([
+    () => monthOffset('2023-12', source),
+    () => monthFromOffset(-1, source),
+    () => monthFromOffset(12, source),
+    () => monthFromOffset(1.5, source),
+  ])('rejects months and offsets outside the source scale', (operation) => {
+    expect(operation).toThrow(RangeError)
   })
 })

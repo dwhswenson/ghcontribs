@@ -58,7 +58,7 @@ export function renderDetails(
 ): void {
   const shell = root.querySelector<HTMLElement>('.ghc-visualization')
   if (shell === null) return
-  let panel = shell.querySelector<HTMLElement>(':scope > .ghc-details')
+  let panel = shell.querySelector<HTMLElement>('.ghc-details')
   if (repository === null || state === null) {
     panel?.remove()
     return
@@ -83,7 +83,8 @@ export function renderDetails(
     status.className = 'ghc-details__content'
     status.setAttribute('aria-live', 'polite')
     panel.append(header, summary, status)
-    shell.append(panel)
+    const host = shell.querySelector<HTMLElement>(':scope > .ghc-sidebar') ?? shell
+    host.append(panel)
   }
 
   const title = panel.querySelector<HTMLElement>('.ghc-details__title')!
