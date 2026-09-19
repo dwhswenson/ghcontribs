@@ -357,7 +357,9 @@ export class FilterControls {
           'input[data-month-bound="through"]',
         )!,
       }
-      const rect = dualRange.getBoundingClientRect()
+      const rect = dualRange.querySelector<HTMLElement>(
+        '.ghc-dual-range__track',
+      )!.getBoundingClientRect()
       const ratio = rect.width === 0
         ? 0
         : Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width))
