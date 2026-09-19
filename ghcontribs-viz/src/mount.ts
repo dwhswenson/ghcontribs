@@ -6,10 +6,12 @@ import { VisualizationModel } from './model/model.ts'
 import { assertMonth, type MonthRange } from './model/months.ts'
 import type { ContributionWeighting, SizeMode } from './model/weights.ts'
 import {
+  ensureEcosystemElements,
   renderEcosystem,
   renderLoadError,
   renderLoading,
 } from './render/ecosystem.ts'
+import { FilterControls } from './render/controls.ts'
 import { renderDetails, type DetailState } from './render/details.ts'
 import './style.css'
 
@@ -48,6 +50,7 @@ function measureLayout(element: HTMLElement): { width: number; height: number } 
     return node.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom)
   }
   const measuredChromeHeight = outerHeight(element.querySelector('.ghc-toolbar')) +
+    outerHeight(element.querySelector('.ghc-controls')) +
     outerHeight(element.querySelector('.ghc-summary'))
   const chromeHeight = measuredChromeHeight > 0
     ? measuredChromeHeight
@@ -89,6 +92,8 @@ export function mountContributionEcosystem(
   const rerender = (): void => {
     if (destroyed || model === null) return
     const snapshot = model.getSnapshot()
+    const elements = ensureEcosystemElements(element)
+    filterControls.update(elements.controls, snapshot)
     renderDetails(
       element,
       selectedRepository === null ? null : findRepository(selectedRepository) ?? null,
@@ -156,6 +161,18 @@ export function mountContributionEcosystem(
     selectRepository,
     startDetailsLoad,
   )
+  const filterControls = new FilterControls(element, {
+    onContributionTypesChange(types): void {
+      if (destroyed || model === null) return
+      model.setContributionTypes(types)
+      rerender()
+    },
+    onMonthRangeChange(range): void {
+      if (destroyed || model === null) return
+      model.setMonthRange(range)
+      rerender()
+    },
+  })
 
   const scheduleResize = (): void => {
     if (destroyed || resizeFrame !== null) return
@@ -204,6 +221,7 @@ export function mountContributionEcosystem(
       ++detailRequest
       model = null
       interaction.destroy()
+      filterControls.destroy()
       resizeObserver?.disconnect()
       window.removeEventListener('resize', scheduleResize)
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
@@ -226,6 +244,7 @@ export function mountContributionEcosystem(
       }
       pendingMonthRange = { from: range.from, through: range.through }
       if (model !== null) {
+        filterControls.cancelPendingMonthRange()
         model.setMonthRange(range)
         rerender()
       }

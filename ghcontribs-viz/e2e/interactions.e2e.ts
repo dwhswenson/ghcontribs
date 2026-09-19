@@ -22,7 +22,106 @@ test('shows equivalent repository detail for pointer and keyboard focus', async 
   await expect(summary).toContainText(
     'LongExampleOrganization/repository-with-a-long-name',
   )
-  await expect(summary).toContainText('2024-01 through 2024-02')
+  await expect(summary).toContainText('2013-01 through 2026-08')
+})
+
+test('filters contribution types and an inclusive range across a year boundary', async ({ page }) => {
+  const summary = page.locator('.ghc-summary')
+  const summaryMeta = page.locator('.ghc-summary__meta')
+  const from = page.locator('input[data-month-bound="from"]')
+  const through = page.locator('input[data-month-bound="through"]')
+  const checkboxes = page.locator('input[data-contribution-type]')
+
+  for (let index = 0; index < await checkboxes.count(); index += 1) {
+    const checkbox = checkboxes.nth(index)
+    if (await checkbox.getAttribute('data-contribution-type') !== 'issues') {
+      await checkbox.uncheck()
+    }
+  }
+  await through.evaluate((element: HTMLInputElement) => {
+    element.value = '132'
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+  await from.evaluate((element: HTMLInputElement) => {
+    element.value = '131'
+    element.dispatchEvent(new Event('change', { bubbles: true }))
+  })
+
+  await expect(from).toHaveAttribute('aria-valuetext', 'December 2023')
+  await expect(through).toHaveAttribute('aria-valuetext', 'January 2024')
+  await expect(summary).toContainText('2023-12 through 2024-01')
+  await expect(summaryMeta).toContainText('issues')
+  await expect(summaryMeta).not.toContainText('pull requests')
+
+  await from.focus()
+  await page.keyboard.press('ArrowRight')
+  await expect(from).toBeFocused()
+  await expect(from).toHaveAttribute('aria-valuetext', 'January 2024')
+  await expect(summary).toContainText('2024-01 through 2024-01')
+
+  await page.getByRole('button', { name: 'All months' }).click()
+  await expect(summary).toContainText('2013-01 through 2026-08')
+  await expect(page.locator('input[data-contribution-type="pull_requests"]')).not.toBeChecked()
+})
+
+test('keeps a selected repository open and cached while filters change', async ({ page }) => {
+  let detailRequests = 0
+  await page.route('**/repos/x-jrxw4z2fpbqw24dmmvhxez3bnzuxuylunfxw4/*.json', async (route) => {
+    detailRequests += 1
+    await route.continue()
+  })
+  await page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  ).click()
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+
+  const issue = page.locator('input[data-contribution-type="issues"]')
+  const pullRequest = page.locator('input[data-contribution-type="pull_requests"]')
+  const review = page.locator('input[data-contribution-type="reviews"]')
+  const comment = page.locator('input[data-contribution-type="comments"]')
+  await issue.uncheck()
+  await pullRequest.uncheck()
+  await comment.uncheck()
+  await expect(page.locator('.ghc-details__item')).toHaveCount(1)
+  await review.uncheck()
+  await expect(page.locator('.ghc-details')).toBeVisible()
+  await expect(page.locator('.ghc-details__content')).toContainText(
+    'No contributions match the active filters',
+  )
+  await expect(page.locator('.ghc-summary')).toContainText(
+    'No contributions match the active filters',
+  )
+  expect(detailRequests).toBe(1)
+})
+
+test('supports touch input on the native month range', async ({ browser }) => {
+  const context = await browser.newContext({
+    hasTouch: true,
+    viewport: { width: 390, height: 844 },
+  })
+  const touchPage = await context.newPage()
+  await touchPage.goto('/')
+  await expect(touchPage.locator('.ghc-ecosystem--layout-ready')).toBeVisible()
+  const from = touchPage.locator('input[data-month-bound="from"]')
+  const box = await from.boundingBox()
+  expect(box).not.toBeNull()
+  await touchPage.touchscreen.tap(box!.x + box!.width * 0.2, box!.y + box!.height / 2)
+  await expect(from).not.toHaveValue('0')
+  await context.close()
+})
+
+test('supports pointer dragging on the shared month track', async ({ page }) => {
+  const from = page.locator('input[data-month-bound="from"]')
+  const box = await from.boundingBox()
+  expect(box).not.toBeNull()
+  await page.mouse.move(box!.x + 9, box!.y + box!.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(box!.x + box!.width * 0.25, box!.y + box!.height / 2, {
+    steps: 5,
+  })
+  await page.mouse.up()
+  await expect(from).not.toHaveValue('0')
+  await expect(from).toBeFocused()
 })
 
 test('opens repository details when a repository is clicked', async ({ page }) => {
@@ -144,6 +243,15 @@ test('respects reduced motion', async ({ page }) => {
   await expect(page.locator('.ghc-ecosystem')).toHaveCSS(
     '--ghc-layout-duration', '0ms',
   )
+  await page.locator('input[data-month-bound="from"]').evaluate(
+    (element: HTMLInputElement) => {
+      element.value = '132'
+      element.dispatchEvent(new Event('change', { bubbles: true }))
+    },
+  )
+  await expect(page.locator('.ghc-summary')).toContainText(
+    '2024-01 through 2026-08',
+  )
 })
 
 test('keeps the ecosystem and summary usable on a mobile viewport', async ({ page }) => {
@@ -176,7 +284,7 @@ test('matches stable overview and focused-owner visuals', async ({ page }) => {
     element.style.position = 'absolute'
     element.style.inset = '0 auto auto 0'
     element.style.width = '1068px'
-    element.style.height = '648px'
+    element.style.background = '#03090f'
   })
   const summaryBox = await page.locator('.ghc-summary').boundingBox()
   expect(summaryBox).not.toBeNull()

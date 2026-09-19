@@ -93,12 +93,13 @@ function createRepositoryElement(key: string): HTMLElement {
 export interface EcosystemElements {
   readonly shell: HTMLElement
   readonly toolbar: HTMLElement
+  readonly controls: HTMLElement
   readonly backButton: HTMLButtonElement
   readonly ecosystem: HTMLElement
   readonly summary: HTMLElement
 }
 
-function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
+export function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
   let shell = target.querySelector<HTMLElement>(':scope > .ghc-visualization')
   if (shell === null) {
     shell = document.createElement('div')
@@ -117,6 +118,10 @@ function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
     backButton.hidden = true
     toolbar.append(toolbarHint, backButton)
 
+    const controls = document.createElement('form')
+    controls.className = 'ghc-controls'
+    controls.addEventListener('submit', (event) => event.preventDefault())
+
     const ecosystem = document.createElement('div')
     ecosystem.className = 'ghc-ecosystem'
     ecosystem.setAttribute('role', 'group')
@@ -126,13 +131,22 @@ function ensureEcosystemElements(target: HTMLElement): EcosystemElements {
     summary.setAttribute('aria-label', 'Contribution summary')
     summary.setAttribute('aria-live', 'polite')
     summary.setAttribute('aria-atomic', 'true')
-    shell.append(toolbar, ecosystem, summary)
+    shell.append(toolbar, controls, ecosystem, summary)
     target.replaceChildren(shell)
+  }
+
+  let controls = shell.querySelector<HTMLElement>(':scope > .ghc-controls')
+  if (controls === null) {
+    controls = document.createElement('form')
+    controls.className = 'ghc-controls'
+    controls.addEventListener('submit', (event) => event.preventDefault())
+    shell.querySelector(':scope > .ghc-ecosystem')!.before(controls)
   }
 
   return {
     shell,
     toolbar: shell.querySelector<HTMLElement>(':scope > .ghc-toolbar')!,
+    controls,
     backButton: shell.querySelector<HTMLButtonElement>('.ghc-back')!,
     ecosystem: shell.querySelector<HTMLElement>(':scope > .ghc-ecosystem')!,
     summary: shell.querySelector<HTMLElement>(':scope > .ghc-summary')!,
@@ -321,7 +335,7 @@ export function renderInteraction(
   )
   meta.textContent = `${snapshot.monthRange.from} through ${snapshot.monthRange.through} · ${
     typeNames.length === 0 ? 'no contribution types selected' : typeNames.join(', ')
-  }`
+  }${snapshot.hasContributions ? '' : ' · No contributions match the active filters.'}`
   elements.summary.replaceChildren(heading, meta, countList(counts))
 }
 

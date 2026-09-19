@@ -57,3 +57,24 @@ visualization.selectRepository(null)
 ```
 
 Unknown owner and repository names are ignored.
+
+## Filtering
+
+The mounted visualization includes contribution-type checkboxes and a compact
+dual-ended month track. Its two thumbs remain separately labeled native range
+inputs for keyboard and assistive-technology use. All four types and the complete
+source month range are selected initially. “All months” resets only the date
+range, and an empty contribution-type selection is valid.
+
+The public controller stays synchronized with those controls:
+
+```ts
+visualization.setContributionTypes(['pull_requests', 'reviews'])
+visualization.setMonthRange({ from: '2024-01', through: '2025-12' })
+```
+
+These calls may be made before the index finishes loading. Filtering uses the
+already-loaded index and cached repository details; it does not trigger new data
+requests. Repository and owner positions animate to their newly weighted
+geometry, but the current partition algorithm may move an item to a different
+neighborhood when weights change substantially.

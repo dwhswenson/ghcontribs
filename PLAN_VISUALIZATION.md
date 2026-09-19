@@ -587,10 +587,8 @@ Initial controls should include:
 Contribution types:
 [✓ PR] [✓ Issue] [✓ Review] [✓ Comment]
 
-Start month: January 2024
-[●────────────────────────]
-End month: August 2026
-[────────────────────────●]
+Start: January 2024                       End: August 2026
+[●──────────────────────────────────────────────●]
 [All months]
 ```
 
@@ -602,8 +600,9 @@ also outside the initial scope; “All months” resets only the date range.
 
 #### Proposed slider behavior
 
-- Use two separate, labeled native range inputs, one for the start month and
-  one for the end month. Both use the same full source-month scale.
+- Overlay two separately labeled native range inputs on one shared visual
+  track, one for the start month and one for the end month. Both use the same
+  full source-month scale; track taps move the nearer endpoint.
 - Map each calendar month to an integer offset from `source.first_month`, with
   `step=1` through `source.last_month`. Include empty and missing activity
   months; do not build the slider scale from sparse repository buckets.
@@ -638,9 +637,10 @@ records without refetching. A selected repository with no matches remains open
 with an explicit empty state.
 
 Filters recompute contribution weights and animate the current DOM geometry.
-Before accepting this milestone, resolve or explicitly accept the milestone 2
-position-stability caveat below: animation alone does not guarantee that
-successive monthly steps preserve approximate positions.
+Milestone 5 explicitly accepts the current milestone 2 position-stability
+caveat: animation keeps changes understandable, but successive monthly steps
+are not required to preserve approximate positions. Stabilizing the partition
+topology remains deferred work.
 
 #### Feasibility and acceptance checks
 
@@ -665,6 +665,11 @@ Acceptance checks should cover:
   render scheduling, final-value correctness, and understandable layout motion.
   Performance during repeated full model/layout/detail renders is not yet
   measured; caching/preaggregation is an optimization only if this check needs it.
+
+The milestone 5 manual acceptance run used the 164-month realistic archive
+(57 owners and 159 repositories). A burst of 121 slider input events retained
+input focus, coalesced to the correct final range, and settled into readable
+geometry without adding data requests.
 
 ---
 
