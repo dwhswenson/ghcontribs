@@ -6,10 +6,12 @@ import { VisualizationModel } from './model/model.ts'
 import { assertMonth, type MonthRange } from './model/months.ts'
 import type { ContributionWeighting, SizeMode } from './model/weights.ts'
 import {
+  ensureEcosystemElements,
   renderEcosystem,
   renderLoadError,
   renderLoading,
 } from './render/ecosystem.ts'
+import { FilterControls, type DetailsBounds } from './render/controls.ts'
 import { renderDetails, type DetailState } from './render/details.ts'
 import './style.css'
 
@@ -35,6 +37,67 @@ const MINIMUM_LAYOUT_HEIGHT = 320
 const MAXIMUM_LAYOUT_HEIGHT = 640
 const DEFAULT_VISUALIZATION_CHROME_HEIGHT = 144
 const VIEWPORT_BOTTOM_GUTTER = 16
+const SIDEBAR_LAYOUT_MINIMUM_WIDTH = 48 * 16
+const DETAILS_RESIZE_ANIMATION_DURATION = 260
+
+function animateDetailsResize(element: HTMLElement, previous: DetailsBounds | null): void {
+  if (previous === null || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    return
+  }
+  const details = element.querySelector<HTMLElement>('.ghc-details')
+  if (details === null || typeof details.animate !== 'function' ||
+      typeof details.getAnimations !== 'function') return
+  for (const animation of details.getAnimations()) animation.cancel()
+  const next = details.getBoundingClientRect()
+  if (Math.abs(previous.height - next.height) < 0.5) return
+  details.animate([
+    {
+      height: `${previous.height}px`,
+      transform: `translateY(${previous.top - next.top}px)`,
+    },
+    {
+      height: `${next.height}px`,
+      transform: 'translateY(0)',
+    },
+  ], {
+    duration: DETAILS_RESIZE_ANIMATION_DURATION,
+    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  })
+}
+
+function arrangeResponsivePanels(
+  target: HTMLElement,
+  elements: ReturnType<typeof ensureEcosystemElements>,
+): void {
+  const measuredWidth = elements.shell.getBoundingClientRect().width || target.clientWidth ||
+    DEFAULT_LAYOUT_WIDTH
+  const useSidebar = measuredWidth >= SIDEBAR_LAYOUT_MINIMUM_WIDTH
+  const details = elements.shell.querySelector<HTMLElement>('.ghc-details')
+
+  if (useSidebar) {
+    if (elements.controls.parentElement !== elements.sidebar) {
+      elements.sidebar.append(elements.controls)
+    }
+    if (details !== null && details.parentElement !== elements.sidebar) {
+      elements.sidebar.append(details)
+    }
+  } else {
+    if (elements.controls.parentElement !== elements.shell) {
+      elements.toolbar.after(elements.controls)
+    }
+    if (details !== null && details.parentElement !== elements.shell) {
+      elements.summary.after(details)
+    }
+  }
+
+  const hasVisibleSidebar = useSidebar && (!elements.controls.hidden || details !== null)
+  elements.sidebar.hidden = !hasVisibleSidebar
+  elements.sidebar.classList.toggle(
+    'ghc-sidebar--filters-visible',
+    useSidebar && !elements.controls.hidden,
+  )
+  elements.shell.classList.toggle('ghc-visualization--with-sidebar', hasVisibleSidebar)
+}
 
 function measureLayout(element: HTMLElement): { width: number; height: number } {
   const elementRect = element.getBoundingClientRect()
@@ -47,7 +110,12 @@ function measureLayout(element: HTMLElement): { width: number; height: number } 
     const style = window.getComputedStyle(node)
     return node.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom)
   }
+  const inlineControlsHeight = element
+      .querySelector('.ghc-visualization--with-sidebar') === null
+    ? outerHeight(element.querySelector('.ghc-controls'))
+    : 0
   const measuredChromeHeight = outerHeight(element.querySelector('.ghc-toolbar')) +
+    inlineControlsHeight +
     outerHeight(element.querySelector('.ghc-summary'))
   const chromeHeight = measuredChromeHeight > 0
     ? measuredChromeHeight
@@ -89,12 +157,15 @@ export function mountContributionEcosystem(
   const rerender = (): void => {
     if (destroyed || model === null) return
     const snapshot = model.getSnapshot()
+    const elements = ensureEcosystemElements(element)
+    filterControls.update(elements.controls, snapshot)
     renderDetails(
       element,
       selectedRepository === null ? null : findRepository(selectedRepository) ?? null,
       detailState,
       snapshot,
     )
+    arrangeResponsivePanels(element, elements)
     const { width, height } = measureLayout(element)
     const focusedOwner = interaction.focusedOwner
     const layout = layoutEcosystem(snapshot, width, height, { focusedOwner })
@@ -156,6 +227,22 @@ export function mountContributionEcosystem(
     selectRepository,
     startDetailsLoad,
   )
+  const filterControls = new FilterControls(element, {
+    onContributionTypesChange(types): void {
+      if (destroyed || model === null) return
+      model.setContributionTypes(types)
+      rerender()
+    },
+    onMonthRangeChange(range): void {
+      if (destroyed || model === null) return
+      model.setMonthRange(range)
+      rerender()
+    },
+    onPanelVisibilityChange(previousDetailsBounds): void {
+      rerender()
+      animateDetailsResize(element, previousDetailsBounds)
+    },
+  })
 
   const scheduleResize = (): void => {
     if (destroyed || resizeFrame !== null) return
@@ -204,6 +291,7 @@ export function mountContributionEcosystem(
       ++detailRequest
       model = null
       interaction.destroy()
+      filterControls.destroy()
       resizeObserver?.disconnect()
       window.removeEventListener('resize', scheduleResize)
       if (resizeFrame !== null) cancelAnimationFrame(resizeFrame)
@@ -226,6 +314,7 @@ export function mountContributionEcosystem(
       }
       pendingMonthRange = { from: range.from, through: range.through }
       if (model !== null) {
+        filterControls.cancelPendingMonthRange()
         model.setMonthRange(range)
         rerender()
       }

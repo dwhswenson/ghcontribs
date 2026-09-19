@@ -57,3 +57,31 @@ visualization.selectRepository(null)
 ```
 
 Unknown owner and repository names are ignored.
+
+## Filtering
+
+The toolbar’s Filters button opens contribution-type checkboxes and a compact
+dual-ended month track. In containers at least 48rem wide, the controls use a
+right sidebar that also holds repository details, with filters above details.
+In narrower containers, filters expand below the toolbar and details remain
+below the visualization. The open state survives container-size changes.
+
+The two month thumbs remain separately labeled native range inputs for keyboard
+and assistive-technology use. All four types and the complete source month range
+are selected initially. “All months” resets only the date range, and an empty
+contribution-type selection is valid. The Filters button indicates when the
+closed panel contains a non-default filter. Escape closes filters before it
+performs the existing details or owner-focus action.
+
+The public controller stays synchronized with those controls:
+
+```ts
+visualization.setContributionTypes(['pull_requests', 'reviews'])
+visualization.setMonthRange({ from: '2024-01', through: '2025-12' })
+```
+
+These calls may be made before the index finishes loading. Filtering uses the
+already-loaded index and cached repository details; it does not trigger new data
+requests. Repository and owner positions animate to their newly weighted
+geometry, but the current partition algorithm may move an item to a different
+neighborhood when weights change substantially.

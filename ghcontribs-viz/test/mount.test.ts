@@ -77,6 +77,154 @@ describe('mountContributionEcosystem', () => {
     expect(target.querySelector('.ghc-summary')?.textContent).toContain(
       '2024-01 through 2024-02',
     )
+    expect(target.querySelectorAll('input[data-contribution-type]:checked')).toHaveLength(4)
+    expect(target.querySelector<HTMLInputElement>('input[data-month-bound="from"]')?.value)
+      .toBe('0')
+    expect(target.querySelector<HTMLInputElement>('input[data-month-bound="through"]')?.value)
+      .toBe('1')
+  })
+
+  it('synchronizes queued and loaded public filter changes with stable controls', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(validIndex)))
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    controller.setContributionTypes(['reviews'])
+    controller.setMonthRange({ from: '2024-02', through: '2024-02' })
+    await flushPromises()
+
+    const from = target.querySelector<HTMLInputElement>('input[data-month-bound="from"]')!
+    const through = target.querySelector<HTMLInputElement>(
+      'input[data-month-bound="through"]',
+    )!
+    expect([from.value, through.value]).toEqual(['1', '1'])
+    expect(from.getAttribute('aria-valuetext')).toBe('February 2024')
+    expect(
+      Array.from(target.querySelectorAll<HTMLInputElement>(
+        'input[data-contribution-type]:checked',
+      )).map((input) => input.dataset.contributionType),
+    ).toEqual(['reviews'])
+    expect(target.querySelector('.ghc-summary')?.textContent).toContain(
+      'No contributions match the active filters',
+    )
+    const repository = target.querySelector<HTMLElement>('.ghc-repository')!
+    expect(repository).not.toBeNull()
+
+    from.focus()
+    controller.setContributionTypes(['issues', 'comments'])
+    controller.setMonthRange({ from: '2024-01', through: '2024-02' })
+    expect(target.querySelector('input[data-month-bound="from"]')).toBe(from)
+    expect(document.activeElement).toBe(from)
+    expect(from.value).toBe('0')
+    expect(target.querySelectorAll('input[data-contribution-type]:checked')).toHaveLength(2)
+  })
+
+  it('keeps programmatic filters closed while updating the active trigger state', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(validIndex)))
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const trigger = target.querySelector<HTMLButtonElement>('.ghc-filter-trigger')!
+    const controls = target.querySelector<HTMLElement>('.ghc-controls')!
+
+    expect(controls.hidden).toBe(true)
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    controller.setContributionTypes(['issues'])
+
+    expect(controls.hidden).toBe(true)
+    expect(trigger.classList.contains('ghc-filter-trigger--active')).toBe(true)
+    expect(trigger.getAttribute('aria-label')).toBe('Filters, active')
+  })
+
+  it('stacks open filters above details and closes filters first with Escape', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const shell = target.querySelector<HTMLElement>('.ghc-visualization')!
+    vi.spyOn(shell, 'getBoundingClientRect').mockReturnValue({
+      width: 1200,
+      top: 0,
+    } as DOMRect)
+    const trigger = target.querySelector<HTMLButtonElement>('.ghc-filter-trigger')!
+    trigger.click()
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+
+    const sidebar = target.querySelector<HTMLElement>('.ghc-sidebar')!
+    const controls = target.querySelector<HTMLElement>('.ghc-controls')!
+    const details = target.querySelector<HTMLElement>('.ghc-details')!
+    expect(sidebar.hidden).toBe(false)
+    expect(Array.from(sidebar.children)).toEqual([controls, details])
+
+    controls.querySelector<HTMLInputElement>('input[data-contribution-type]')!.focus()
+    controls.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true, cancelable: true,
+    }))
+    expect(controls.hidden).toBe(true)
+    expect(document.activeElement).toBe(trigger)
+    expect(target.querySelector('.ghc-details')).toBe(details)
+    expect(sidebar.hidden).toBe(false)
+  })
+
+  it('applies checkbox and reset controls without removing zero-count repositories', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(validIndex)))
+    const target = document.createElement('div')
+    document.body.append(target)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const repository = target.querySelector<HTMLElement>('.ghc-repository')!
+
+    for (const input of target.querySelectorAll<HTMLInputElement>(
+      'input[data-contribution-type]',
+    )) {
+      input.checked = false
+    }
+    target.querySelector<HTMLInputElement>('input[data-contribution-type]')!
+      .dispatchEvent(new Event('change', { bubbles: true }))
+    expect(target.querySelector('.ghc-summary')?.textContent).toContain(
+      'No contributions match the active filters',
+    )
+    expect(target.querySelector('.ghc-repository')).toBe(repository)
+    expect(repository.getAttribute('aria-label')).toContain('0 issues')
+
+    target.querySelector<HTMLInputElement>('input[data-month-bound="from"]')!.value = '1'
+    target.querySelector<HTMLInputElement>('input[data-month-bound="from"]')!
+      .dispatchEvent(new Event('change', { bubbles: true }))
+    expect(target.querySelector<HTMLButtonElement>('[data-action="all-months"]')?.disabled)
+      .toBe(false)
+    target.querySelector<HTMLButtonElement>('[data-action="all-months"]')!.click()
+    expect(target.querySelector<HTMLInputElement>('input[data-month-bound="from"]')?.value)
+      .toBe('0')
+    expect(target.querySelectorAll('input[data-contribution-type]:checked')).toHaveLength(0)
+  })
+
+  it('keeps a multi-month scale usable for an all-empty dataset', async () => {
+    const emptyIndex: VisualizationIndex = {
+      schema_version: 1,
+      user: 'octocat',
+      source: { first_month: '2024-01', last_month: '2024-03' },
+      owners: [],
+    }
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(emptyIndex)))
+    const target = document.createElement('div')
+    document.body.append(target)
+    mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+
+    const sliders = Array.from(target.querySelectorAll<HTMLInputElement>(
+      'input[data-month-bound]',
+    ))
+    expect(sliders).toHaveLength(2)
+    expect(sliders.every((slider) => !slider.disabled && slider.max === '2')).toBe(true)
+    expect(target.querySelector('.ghc-summary')?.textContent).toContain(
+      'No contributions match the active filters',
+    )
   })
 
   it('shows equivalent filtered summaries for pointer and keyboard focus', async () => {
@@ -305,9 +453,34 @@ describe('mountContributionEcosystem', () => {
     controller.setMonthRange({ from: '2024-02', through: '2024-02' })
     expect(target.querySelector('.ghc-details__content')?.textContent)
       .toContain('No contributions match')
+    expect(target.querySelector('.ghc-details')).not.toBeNull()
     controller.selectRepository(null)
     controller.selectRepository('ExampleOrg/example')
     await flushPromises()
+    expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('filters detail timestamps by their UTC month without refetching', async () => {
+    const details = structuredClone(validDetails)
+    details.contributions[0]!.created = '2024-02-01T00:30:00+02:00'
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(details))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+
+    controller.setContributionTypes(['issues'])
+    controller.setMonthRange({ from: '2024-01', through: '2024-01' })
+    expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(1)
+    controller.setMonthRange({ from: '2024-02', through: '2024-02' })
+    expect(target.querySelector('.ghc-details__content')?.textContent).toContain(
+      'No contributions match',
+    )
     expect(fetcher).toHaveBeenCalledTimes(2)
   })
 
