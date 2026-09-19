@@ -8,7 +8,9 @@
     "build": "tsc && vite build",
     "test": "vitest run",
     "test:browser": "playwright test",
-    "test:browser:update": "playwright test --update-snapshots",
+    "test:browser:linux": "bash scripts/run-browser-tests-linux.sh",
+    "test:browser:update": "bash scripts/update-browser-snapshots.sh",
+    "test:browser:update:current": "playwright test --update-snapshots=all",
     "typecheck": "tsc"
   },
   "dependencies": {

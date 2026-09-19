@@ -85,3 +85,20 @@ already-loaded index and cached repository details; it does not trigger new data
 requests. Repository and owner positions animate to their newly weighted
 geometry, but the current partition algorithm may move an item to a different
 neighborhood when weights change substantially.
+
+## Browser snapshots
+
+Visual baselines are platform-specific because browser font metrics differ
+between macOS development machines and the Linux CI runner. Refresh snapshots
+with:
+
+```bash
+npm run test:browser:update
+```
+
+On macOS this updates the Darwin baselines locally. It always uses the matching
+Playwright Docker image to update the Linux baselines used by CI, so Docker must
+be running. The image version is read from `package-lock.json`, keeping baseline
+generation and the installed Playwright version synchronized. Use
+`npm run test:browser:update:current` only when intentionally updating the
+current platform without refreshing the Linux CI baselines.
