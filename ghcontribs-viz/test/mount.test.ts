@@ -119,6 +119,59 @@ describe('mountContributionEcosystem', () => {
     expect(target.querySelectorAll('input[data-contribution-type]:checked')).toHaveLength(2)
   })
 
+  it('keeps programmatic filters closed while updating the active trigger state', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json(validIndex)))
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const trigger = target.querySelector<HTMLButtonElement>('.ghc-filter-trigger')!
+    const controls = target.querySelector<HTMLElement>('.ghc-controls')!
+
+    expect(controls.hidden).toBe(true)
+    expect(trigger.getAttribute('aria-expanded')).toBe('false')
+    controller.setContributionTypes(['issues'])
+
+    expect(controls.hidden).toBe(true)
+    expect(trigger.classList.contains('ghc-filter-trigger--active')).toBe(true)
+    expect(trigger.getAttribute('aria-label')).toBe('Filters, active')
+  })
+
+  it('stacks open filters above details and closes filters first with Escape', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    const shell = target.querySelector<HTMLElement>('.ghc-visualization')!
+    vi.spyOn(shell, 'getBoundingClientRect').mockReturnValue({
+      width: 1200,
+      top: 0,
+    } as DOMRect)
+    const trigger = target.querySelector<HTMLButtonElement>('.ghc-filter-trigger')!
+    trigger.click()
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+
+    const sidebar = target.querySelector<HTMLElement>('.ghc-sidebar')!
+    const controls = target.querySelector<HTMLElement>('.ghc-controls')!
+    const details = target.querySelector<HTMLElement>('.ghc-details')!
+    expect(sidebar.hidden).toBe(false)
+    expect(Array.from(sidebar.children)).toEqual([controls, details])
+
+    controls.querySelector<HTMLInputElement>('input[data-contribution-type]')!.focus()
+    controls.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'Escape', bubbles: true, cancelable: true,
+    }))
+    expect(controls.hidden).toBe(true)
+    expect(document.activeElement).toBe(trigger)
+    expect(target.querySelector('.ghc-details')).toBe(details)
+    expect(sidebar.hidden).toBe(false)
+  })
+
   it('applies checkbox and reset controls without removing zero-count repositories', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => Response.json(validIndex)))
     const target = document.createElement('div')

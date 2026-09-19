@@ -5,6 +5,12 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('.ghc-ecosystem--layout-ready')).toBeVisible()
 })
 
+async function openFilters(page: import('@playwright/test').Page): Promise<void> {
+  const trigger = page.locator('.ghc-filter-trigger')
+  if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()
+  await expect(page.locator('.ghc-controls')).toBeVisible()
+}
+
 test('shows equivalent repository detail for pointer and keyboard focus', async ({ page }) => {
   const repository = page.locator(
     '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
@@ -26,11 +32,22 @@ test('shows equivalent repository detail for pointer and keyboard focus', async 
 })
 
 test('filters contribution types and an inclusive range across a year boundary', async ({ page }) => {
+  await openFilters(page)
   const summary = page.locator('.ghc-summary')
   const summaryMeta = page.locator('.ghc-summary__meta')
   const from = page.locator('input[data-month-bound="from"]')
   const through = page.locator('input[data-month-bound="through"]')
   const checkboxes = page.locator('input[data-contribution-type]')
+  const typeControls = page.locator('.ghc-type-control')
+  const typeTops = await typeControls.evaluateAll((controls) =>
+    controls.map((control) => control.getBoundingClientRect().top),
+  )
+  expect(new Set(typeTops).size).toBe(1)
+  const rangeBox = await page.locator('.ghc-dual-range').boundingBox()
+  const resetBox = await page.getByRole('button', { name: 'All months' }).boundingBox()
+  expect(rangeBox).not.toBeNull()
+  expect(resetBox).not.toBeNull()
+  expect(resetBox!.x).toBeGreaterThanOrEqual(rangeBox!.x + rangeBox!.width)
 
   for (let index = 0; index < await checkboxes.count(); index += 1) {
     const checkbox = checkboxes.nth(index)
@@ -74,6 +91,7 @@ test('keeps a selected repository open and cached while filters change', async (
     '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
   ).click()
   await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  await openFilters(page)
 
   const issue = page.locator('input[data-contribution-type="issues"]')
   const pullRequest = page.locator('input[data-contribution-type="pull_requests"]')
@@ -102,6 +120,7 @@ test('supports touch input on the native month range', async ({ browser }) => {
   const touchPage = await context.newPage()
   await touchPage.goto('/')
   await expect(touchPage.locator('.ghc-ecosystem--layout-ready')).toBeVisible()
+  await openFilters(touchPage)
   const from = touchPage.locator('input[data-month-bound="from"]')
   const box = await from.boundingBox()
   expect(box).not.toBeNull()
@@ -111,6 +130,7 @@ test('supports touch input on the native month range', async ({ browser }) => {
 })
 
 test('supports pointer dragging on the shared month track', async ({ page }) => {
+  await openFilters(page)
   const from = page.locator('input[data-month-bound="from"]')
   const box = await from.boundingBox()
   expect(box).not.toBeNull()
@@ -175,7 +195,7 @@ test('keeps ecosystem geometry stable as repository details finish loading', asy
   expect(loadedHeight).toBeCloseTo(loadingHeight, 0)
 })
 
-test('places details beside the ecosystem only when the mount is wide enough', async ({ page }) => {
+test('places the sidebar beside the ecosystem only when the mount is wide enough', async ({ page }) => {
   const repository = page.locator(
     '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
   )
@@ -191,12 +211,115 @@ test('places details beside the ecosystem only when the mount is wide enough', a
   expect(wideDetails!.x).toBeGreaterThan(wideEcosystem!.x + wideEcosystem!.width)
   expect(Math.abs(wideDetails!.y - wideEcosystem!.y)).toBeLessThan(2)
 
-  await page.setViewportSize({ width: 900, height: 900 })
+  await page.setViewportSize({ width: 700, height: 900 })
   const narrowSummary = await page.locator('.ghc-summary').boundingBox()
   const narrowDetails = await details.boundingBox()
   expect(narrowSummary).not.toBeNull()
   expect(narrowDetails).not.toBeNull()
   expect(narrowDetails!.y).toBeGreaterThanOrEqual(narrowSummary!.y + narrowSummary!.height)
+})
+
+test('stacks filters above details and closes filters first with Escape', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  ).click()
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+
+  const controls = page.locator('.ghc-controls')
+  const details = page.locator('.ghc-details')
+  const ecosystem = page.locator('.ghc-ecosystem')
+  const summary = page.locator('.ghc-summary')
+  const sidebar = page.locator('.ghc-sidebar')
+  const ecosystemBefore = await ecosystem.boundingBox()
+  const summaryBefore = await summary.boundingBox()
+  const sidebarBefore = await sidebar.boundingBox()
+  const detailsBefore = await details.boundingBox()
+
+  await openFilters(page)
+
+  const controlsBox = await controls.boundingBox()
+  const detailsBox = await details.boundingBox()
+  const ecosystemBox = await ecosystem.boundingBox()
+  const summaryBox = await summary.boundingBox()
+  const sidebarBox = await sidebar.boundingBox()
+  expect(controlsBox).not.toBeNull()
+  expect(detailsBox).not.toBeNull()
+  expect(ecosystemBox).not.toBeNull()
+  expect(summaryBox).not.toBeNull()
+  expect(sidebarBox).not.toBeNull()
+  expect(ecosystemBefore).not.toBeNull()
+  expect(summaryBefore).not.toBeNull()
+  expect(sidebarBefore).not.toBeNull()
+  expect(detailsBefore).not.toBeNull()
+  expect(ecosystemBox).toEqual(ecosystemBefore)
+  expect(summaryBox).toEqual(summaryBefore)
+  expect(sidebarBox).toEqual(sidebarBefore)
+  expect(detailsBox!.height).toBeLessThan(detailsBefore!.height)
+  expect(await details.evaluate((panel) => panel.getAnimations().length)).toBe(0)
+  expect(await page.locator('.ghc-details__list').evaluate(
+    (list) => list.scrollHeight > list.clientHeight,
+  )).toBe(true)
+  expect(detailsBox!.y).toBeGreaterThanOrEqual(controlsBox!.y + controlsBox!.height)
+  expect(controlsBox!.x).toBeGreaterThan(ecosystemBox!.x + ecosystemBox!.width)
+
+  await controls.locator('input[data-contribution-type]').first().focus()
+  await page.keyboard.press('Escape')
+  await expect(controls).toBeHidden()
+  await expect(details).toBeVisible()
+  await expect(page.locator('.ghc-filter-trigger')).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(details).toHaveCount(0)
+})
+
+test('animates detail resizing when filters open and close', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  ).click()
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  const details = page.locator('.ghc-details')
+  const expandedHeight = (await details.boundingBox())!.height
+
+  await page.locator('.ghc-filter-trigger').click()
+  expect(await details.evaluate((panel) => panel.getAnimations().length)).toBe(1)
+  await details.evaluate(async (panel) => {
+    await Promise.all(panel.getAnimations().map((animation) => animation.finished))
+  })
+  const compactHeight = (await details.boundingBox())!.height
+  expect(compactHeight).toBeLessThan(expandedHeight)
+
+  await page.locator('.ghc-controls__close').click()
+  expect(await details.evaluate((panel) => panel.getAnimations().length)).toBe(1)
+  await details.evaluate(async (panel) => {
+    await Promise.all(panel.getAnimations().map((animation) => animation.finished))
+  })
+  expect((await details.boundingBox())!.height).toBeCloseTo(expandedHeight, 0)
+})
+
+test('keeps an open filter panel inline across the mobile breakpoint', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await openFilters(page)
+  const controls = page.locator('.ghc-controls')
+  const ecosystem = page.locator('.ghc-ecosystem')
+  const wideControls = await controls.boundingBox()
+  const wideEcosystem = await ecosystem.boundingBox()
+  expect(wideControls).not.toBeNull()
+  expect(wideEcosystem).not.toBeNull()
+  expect(wideControls!.x).toBeGreaterThan(wideEcosystem!.x + wideEcosystem!.width)
+
+  await page.setViewportSize({ width: 700, height: 900 })
+  await expect(page.locator('.ghc-filter-trigger')).toHaveAttribute('aria-expanded', 'true')
+  const narrowToolbar = await page.locator('.ghc-toolbar').boundingBox()
+  const narrowControls = await controls.boundingBox()
+  const narrowEcosystem = await ecosystem.boundingBox()
+  expect(narrowToolbar).not.toBeNull()
+  expect(narrowControls).not.toBeNull()
+  expect(narrowEcosystem).not.toBeNull()
+  expect(narrowControls!.y).toBeGreaterThanOrEqual(narrowToolbar!.y + narrowToolbar!.height)
+  expect(narrowEcosystem!.y).toBeGreaterThanOrEqual(narrowControls!.y + narrowControls!.height)
 })
 
 test('opens details with keyboard and supports retry', async ({ page }) => {
@@ -312,6 +435,52 @@ test('matches stable overview and focused-owner visuals', async ({ page }) => {
   }))
   await expect(visualization).toHaveScreenshot(
     'ecosystem-owner-focused.png',
+    { animations: 'disabled', maxDiffPixelRatio: 0.03 },
+  )
+})
+
+test('matches responsive filter and detail panel visuals', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await page.setViewportSize({ width: 1100, height: 900 })
+  const visualization = page.locator('.ghc-visualization')
+  await visualization.evaluate((element) => {
+    element.style.position = 'absolute'
+    element.style.inset = '0 auto auto 0'
+    element.style.width = '1068px'
+    element.style.background = '#03090f'
+  })
+
+  await openFilters(page)
+  await expect(visualization).toHaveScreenshot(
+    'ecosystem-filters-open.png',
+    { animations: 'disabled', maxDiffPixelRatio: 0.03 },
+  )
+
+  await page.locator(
+    '[data-repository-key="LongExampleOrganization/repository-with-a-long-name"]',
+  ).click()
+  await expect(page.locator('.ghc-details__item')).toHaveCount(4)
+  await expect(visualization).toHaveScreenshot(
+    'ecosystem-filters-and-details.png',
+    { animations: 'disabled', maxDiffPixelRatio: 0.03 },
+  )
+
+  await page.locator('.ghc-controls__close').click()
+  await expect(visualization).toHaveScreenshot(
+    'ecosystem-details-open.png',
+    { animations: 'disabled', maxDiffPixelRatio: 0.03 },
+  )
+
+  await page.locator('.ghc-details__close').click()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await visualization.evaluate((element) => {
+    element.style.position = ''
+    element.style.inset = ''
+    element.style.width = ''
+  })
+  await openFilters(page)
+  await expect(visualization).toHaveScreenshot(
+    'ecosystem-mobile-filters-open.png',
     { animations: 'disabled', maxDiffPixelRatio: 0.03 },
   )
 })

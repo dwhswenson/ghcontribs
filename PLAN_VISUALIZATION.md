@@ -592,6 +592,15 @@ Start: January 2024                       End: August 2026
 [All months]
 ```
 
+The controls are mounted in a collapsible Filters panel and start closed. At a
+visualization-container width of 48rem or more, the panel occupies a right-hand
+sidebar and narrows the ecosystem. Repository details share that sidebar below
+the filters when both are open. Below 48rem, the filters expand inline directly
+below the toolbar while details remain below the ecosystem and summary. Panel
+state is independent from the active filters, owner focus, and repository
+selection, and survives breakpoint changes. The toolbar trigger shows an active
+indicator whenever the selected filters differ from the defaults.
+
 There is no “Size by” control. Retain the current contribution-based sizing
 and its default square-root weighting independently for owners and repositories.
 Existing programmatic equal sizing and weighting options need not be removed;

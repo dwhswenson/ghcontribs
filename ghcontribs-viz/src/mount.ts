@@ -11,7 +11,7 @@ import {
   renderLoadError,
   renderLoading,
 } from './render/ecosystem.ts'
-import { FilterControls } from './render/controls.ts'
+import { FilterControls, type DetailsBounds } from './render/controls.ts'
 import { renderDetails, type DetailState } from './render/details.ts'
 import './style.css'
 
@@ -37,6 +37,67 @@ const MINIMUM_LAYOUT_HEIGHT = 320
 const MAXIMUM_LAYOUT_HEIGHT = 640
 const DEFAULT_VISUALIZATION_CHROME_HEIGHT = 144
 const VIEWPORT_BOTTOM_GUTTER = 16
+const SIDEBAR_LAYOUT_MINIMUM_WIDTH = 48 * 16
+const DETAILS_RESIZE_ANIMATION_DURATION = 260
+
+function animateDetailsResize(element: HTMLElement, previous: DetailsBounds | null): void {
+  if (previous === null || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+    return
+  }
+  const details = element.querySelector<HTMLElement>('.ghc-details')
+  if (details === null || typeof details.animate !== 'function' ||
+      typeof details.getAnimations !== 'function') return
+  for (const animation of details.getAnimations()) animation.cancel()
+  const next = details.getBoundingClientRect()
+  if (Math.abs(previous.height - next.height) < 0.5) return
+  details.animate([
+    {
+      height: `${previous.height}px`,
+      transform: `translateY(${previous.top - next.top}px)`,
+    },
+    {
+      height: `${next.height}px`,
+      transform: 'translateY(0)',
+    },
+  ], {
+    duration: DETAILS_RESIZE_ANIMATION_DURATION,
+    easing: 'cubic-bezier(0.22, 1, 0.36, 1)',
+  })
+}
+
+function arrangeResponsivePanels(
+  target: HTMLElement,
+  elements: ReturnType<typeof ensureEcosystemElements>,
+): void {
+  const measuredWidth = elements.shell.getBoundingClientRect().width || target.clientWidth ||
+    DEFAULT_LAYOUT_WIDTH
+  const useSidebar = measuredWidth >= SIDEBAR_LAYOUT_MINIMUM_WIDTH
+  const details = elements.shell.querySelector<HTMLElement>('.ghc-details')
+
+  if (useSidebar) {
+    if (elements.controls.parentElement !== elements.sidebar) {
+      elements.sidebar.append(elements.controls)
+    }
+    if (details !== null && details.parentElement !== elements.sidebar) {
+      elements.sidebar.append(details)
+    }
+  } else {
+    if (elements.controls.parentElement !== elements.shell) {
+      elements.toolbar.after(elements.controls)
+    }
+    if (details !== null && details.parentElement !== elements.shell) {
+      elements.summary.after(details)
+    }
+  }
+
+  const hasVisibleSidebar = useSidebar && (!elements.controls.hidden || details !== null)
+  elements.sidebar.hidden = !hasVisibleSidebar
+  elements.sidebar.classList.toggle(
+    'ghc-sidebar--filters-visible',
+    useSidebar && !elements.controls.hidden,
+  )
+  elements.shell.classList.toggle('ghc-visualization--with-sidebar', hasVisibleSidebar)
+}
 
 function measureLayout(element: HTMLElement): { width: number; height: number } {
   const elementRect = element.getBoundingClientRect()
@@ -49,8 +110,12 @@ function measureLayout(element: HTMLElement): { width: number; height: number } 
     const style = window.getComputedStyle(node)
     return node.offsetHeight + parseFloat(style.marginTop) + parseFloat(style.marginBottom)
   }
+  const inlineControlsHeight = element
+      .querySelector('.ghc-visualization--with-sidebar') === null
+    ? outerHeight(element.querySelector('.ghc-controls'))
+    : 0
   const measuredChromeHeight = outerHeight(element.querySelector('.ghc-toolbar')) +
-    outerHeight(element.querySelector('.ghc-controls')) +
+    inlineControlsHeight +
     outerHeight(element.querySelector('.ghc-summary'))
   const chromeHeight = measuredChromeHeight > 0
     ? measuredChromeHeight
@@ -100,6 +165,7 @@ export function mountContributionEcosystem(
       detailState,
       snapshot,
     )
+    arrangeResponsivePanels(element, elements)
     const { width, height } = measureLayout(element)
     const focusedOwner = interaction.focusedOwner
     const layout = layoutEcosystem(snapshot, width, height, { focusedOwner })
@@ -171,6 +237,10 @@ export function mountContributionEcosystem(
       if (destroyed || model === null) return
       model.setMonthRange(range)
       rerender()
+    },
+    onPanelVisibilityChange(previousDetailsBounds): void {
+      rerender()
+      animateDetailsResize(element, previousDetailsBounds)
     },
   })
 

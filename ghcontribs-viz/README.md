@@ -60,11 +60,18 @@ Unknown owner and repository names are ignored.
 
 ## Filtering
 
-The mounted visualization includes contribution-type checkboxes and a compact
-dual-ended month track. Its two thumbs remain separately labeled native range
-inputs for keyboard and assistive-technology use. All four types and the complete
-source month range are selected initially. “All months” resets only the date
-range, and an empty contribution-type selection is valid.
+The toolbar’s Filters button opens contribution-type checkboxes and a compact
+dual-ended month track. In containers at least 48rem wide, the controls use a
+right sidebar that also holds repository details, with filters above details.
+In narrower containers, filters expand below the toolbar and details remain
+below the visualization. The open state survives container-size changes.
+
+The two month thumbs remain separately labeled native range inputs for keyboard
+and assistive-technology use. All four types and the complete source month range
+are selected initially. “All months” resets only the date range, and an empty
+contribution-type selection is valid. The Filters button indicates when the
+closed panel contains a non-default filter. Escape closes filters before it
+performs the existing details or owner-focus action.
 
 The public controller stays synchronized with those controls:
 
