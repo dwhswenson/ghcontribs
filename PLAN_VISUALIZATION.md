@@ -111,7 +111,7 @@ ghcontribs/
 │       ├── contributions.schema.json
 │       ├── visualization-index.schema.json
 │       └── repository-details.schema.json
-├── viz/
+├── ghcontribs-viz/
 │   ├── package.json
 │   ├── src/
 │   ├── test/
@@ -120,7 +120,7 @@ ghcontribs/
 ```
 
 Do not create a separate Python `data-builder` project. The organizer consumes
-objects and JSON conventions already owned by `ghcontribs`. The `viz/` package
+objects and JSON conventions already owned by `ghcontribs`. The `ghcontribs-viz/` package
 remains separate because it has a different runtime, toolchain, and potential
 release lifecycle.
 
@@ -461,9 +461,10 @@ interface ContributionEcosystem {
 }
 ```
 
-Month bounds are inclusive `YYYY-MM` values. Presets such as “one year” are UI
-conveniences calculated from the dataset's `last_month`; they are not separate
-model concepts.
+Month bounds are inclusive `YYYY-MM` values. Milestone 5 exposes start and end
+month sliders over the dataset's source range. The existing `setSizeMode` API
+remains available to package consumers; a sizing control is not part of the
+planned UI.
 
 The package should export only the mount API, its option/controller types, the
 public data-contract types, and contribution filter types. Do not expose the
@@ -494,7 +495,7 @@ InteractionController
 A reasonable source organization is:
 
 ```text
-viz/src/
+ghcontribs-viz/src/
 ├── data/          # public types, schema checks, index/detail loading
 ├── model/         # counts, filters, ranges, sizing, selection
 ├── layout/        # owner grouping, packing, collision, stable positions
@@ -575,7 +576,10 @@ The detail view must handle all four source variants. Reviews display their
 associated pull request, while comments display their associated issue or pull
 request.
 
-### Milestone 5: filtering and sizing
+### Milestone 5: contribution-type and month-range controls
+
+The work here is to expose contribution-type and inclusive month-range changes
+through synchronized, accessible controls.
 
 Initial controls should include:
 
@@ -583,20 +587,84 @@ Initial controls should include:
 Contribution types:
 [✓ PR] [✓ Issue] [✓ Review] [✓ Comment]
 
-Time:
-[All] [5 years] [2 years] [1 year]
-
-Size by:
-[Contributions] [Equal]
+Start month: January 2024
+[●────────────────────────]
+End month: August 2026
+[────────────────────────●]
+[All months]
 ```
 
-All filtering and contribution sizing operate from `index.json`. A missing
-monthly bucket means zero contributions. With contribution sizing, filters
-recompute weights and animate the current layout. Equal sizing ignores counts
-for geometry but still updates displayed summaries.
+There is no “Size by” control. Retain the current contribution-based sizing
+and its default square-root weighting independently for owners and repositories.
+Existing programmatic equal sizing and weighting options need not be removed;
+changing that API is outside this milestone. Rolling-year preset buttons are
+also outside the initial scope; “All months” resets only the date range.
 
-Impact sizing is deliberately absent from v1 rather than shown as an inactive
-or partially populated control.
+#### Proposed slider behavior
+
+- Use two separate, labeled native range inputs, one for the start month and
+  one for the end month. Both use the same full source-month scale.
+- Map each calendar month to an integer offset from `source.first_month`, with
+  `step=1` through `source.last_month`. Include empty and missing activity
+  months; do not build the slider scale from sparse repository buckets.
+- Start with the complete source range. Both endpoints are inclusive UTC
+  calendar months, consistent with index aggregation and detail filtering.
+- Show the selected month and year beside each slider. Every step is a month;
+  visible scale labels can mark years/endpoints to avoid crowding long archives.
+- Allow a single-month range. Clamp the thumb being moved at the other endpoint
+  if it would cross it; do not swap start/end roles or move the other endpoint.
+- For a one-month dataset, display that month for both endpoints and disable
+  the sliders. An all-empty dataset with a valid source range still permits
+  range selection and shows the zero-results state.
+- Support pointer, touch, and keyboard operation, including one-month arrow
+  steps. Give each input a visible label and a human-readable `aria-valuetext`
+  such as “January 2024”, rather than announcing an integer month offset.
+- Keep the sliders mounted and focused while the visualization updates. Update
+  the displayed dates immediately, and coalesce visualization updates to at
+  most one per animation frame during dragging. Apply the final value reliably
+  on release; respect reduced-motion preferences.
+- Programmatic `setMonthRange` and `setContributionTypes` changes must update
+  the controls too, including values queued before the index finishes loading.
+
+#### Filtering and selection behavior
+
+All four contribution types start enabled; selecting none is valid and produces
+zero results. All overview filtering and sizing use the already-loaded
+`index.json`, with missing monthly buckets treated as zero. Keep the existing
+minimum-size rectangles for zero-count repositories, visibly report no matching
+contributions, and retain owner focus and repository selection while filtering.
+An open detail panel follows the same type and UTC month bounds, using cached
+records without refetching. A selected repository with no matches remains open
+with an explicit empty state.
+
+Filters recompute contribution weights and animate the current DOM geometry.
+Before accepting this milestone, resolve or explicitly accept the milestone 2
+position-stability caveat below: animation alone does not guarantee that
+successive monthly steps preserve approximate positions.
+
+#### Feasibility and acceptance checks
+
+No schema, organizer, daily buckets, or new data requests are needed. The
+existing `setMonthRange`, sparse-month count aggregation, and UTC detail
+filtering provide the core behavior. New work is month-offset conversion,
+control rendering/event handling, synchronization, and drag-update scheduling.
+Native range inputs support integer steps; `aria-valuetext` supplies meaningful
+month names ([range input documentation](https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Elements/input/range),
+[WAI range-value guidance](https://www.w3.org/WAI/ARIA/apg/practices/range-related-properties/)).
+
+Acceptance checks should cover:
+
+- Month stepping across December/January, inclusive endpoints, sparse months,
+  endpoint clamping, one-month datasets, reset, and no selected types.
+- Agreement between controls, summaries, weights, and open details, including
+  programmatic changes and UTC-offset contribution timestamps.
+- No extra index/detail requests from filter changes after details are loaded.
+- Keyboard and touch use, visible focus, readable month announcements, narrow
+  layouts, long archives, reduced motion, and focus retention during dragging.
+- Continuous dragging on the realistic archive: responsive controls, bounded
+  render scheduling, final-value correctness, and understandable layout motion.
+  Performance during repeated full model/layout/detail renders is not yet
+  measured; caching/preaggregation is an optimization only if this check needs it.
 
 ---
 
@@ -630,7 +698,7 @@ Build the package as TypeScript/ES modules with generated type declarations.
 Vite library mode is a reasonable initial build system, while Vitest and a DOM
 test environment can cover the public controller and model behavior.
 
-`viz/demo/` should be a small framework-free page that imports the package and
+`ghcontribs-viz/demo/` should be a small framework-free page that imports the package and
 mounts the visualization against the organizer's golden fixture. It is the
 primary development and visual-regression surface, not a second application.
 
@@ -638,7 +706,7 @@ TypeScript tests should cover:
 
 - schema-version and shape validation;
 - all four contribution filters;
-- inclusive monthly range calculations and rolling presets;
+- inclusive monthly range calculations, monthly slider steps, and reset;
 - sparse monthly buckets;
 - contribution and equal sizing;
 - owner focus and repository selection state;
@@ -690,14 +758,14 @@ invalidation do not belong in the organizer's core transformation logic.
 4. Implement four-type monthly aggregation and deterministic full-tree
    emission.
 5. Add unit, schema, error-case, and golden-directory tests.
-6. Scaffold `viz/`, mirror the data contract as TypeScript types, and load the
+6. Scaffold `ghcontribs-viz/`, mirror the data contract as TypeScript types, and load the
    golden output in the standalone demo.
 7. Implement the model and static owner/repository overview.
 8. Develop the stable organic layout against realistic data.
 9. Add hover/focus, owner focus, and keyboard interaction.
 10. Add lazy repository details and all four contribution variants.
-11. Add contribution-type and monthly-range filters plus contribution/equal
-    sizing.
+11. Add contribution-type controls and start/end month sliders, retaining
+    contribution-based sizing without a “Size by” control.
 12. Complete responsive, accessibility, reduced-motion, error-state, and
     visual regression work.
 13. Package the browser library and integrate it into Astro.
