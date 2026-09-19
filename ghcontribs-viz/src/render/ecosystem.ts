@@ -1,5 +1,9 @@
 import type { ContributionCounts } from '../data/types.ts'
-import type { EcosystemLayout, LayoutRect } from '../layout/treemap.ts'
+import {
+  ownerLabelIsVisible,
+  type EcosystemLayout,
+  type LayoutRect,
+} from '../layout/treemap.ts'
 import type { VisualizationSnapshot } from '../model/model.ts'
 import type { InteractionSnapshot, InteractionTarget } from '../interaction/state.ts'
 
@@ -14,8 +18,6 @@ const COUNT_LABELS: ReadonlyArray<{
   { key: 'comments', short: 'C', label: 'comments' },
 ]
 
-const MINIMUM_OWNER_LABEL_WIDTH = 72
-const MINIMUM_OWNER_LABEL_HEIGHT = 58
 const OWNER_LABEL_FIXED_WIDTH = 34
 const OWNER_LABEL_CHARACTER_WIDTH = 8
 
@@ -266,8 +268,7 @@ export function renderEcosystem(
     ownerFocus.setAttribute('aria-expanded', String(isFocusTarget))
     ownerLabel.classList.toggle(
       'ghc-owner__label--hidden',
-      ownerLayout.width < MINIMUM_OWNER_LABEL_WIDTH ||
-        ownerLayout.height < MINIMUM_OWNER_LABEL_HEIGHT,
+      !ownerLabelIsVisible(ownerLayout),
     )
     const remainingRepositories = new Map(
       Array.from(
