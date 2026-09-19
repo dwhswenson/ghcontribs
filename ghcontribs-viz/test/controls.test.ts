@@ -209,31 +209,33 @@ describe('FilterControls', () => {
     expect(ranges).toEqual([{ from: '2024-02', through: '2024-02' }])
   })
 
-  it('moves the nearest endpoint when the shared track is clicked', () => {
-    const { container, ranges } = setup(snapshot({
-      first_month: '2024-01',
-      last_month: '2024-12',
-    }))
+  it('maps visible track clicks to the nearest endpoint, including scale ends', () => {
+    const index = structuredClone(validIndex)
+    index.source = { first_month: '2024-01', last_month: '2024-12' }
+    const model = new VisualizationModel(index)
+    model.setMonthRange({ from: '2024-03', through: '2024-10' })
+    const { container, ranges } = setup(model.getSnapshot())
     const dualRange = container.querySelector<HTMLElement>('.ghc-dual-range')!
-    vi.spyOn(dualRange, 'getBoundingClientRect').mockReturnValue({
-      left: 0,
-      width: 100,
+    const track = dualRange.querySelector<HTMLElement>('.ghc-dual-range__track')!
+    vi.spyOn(track, 'getBoundingClientRect').mockReturnValue({
+      left: 10,
+      width: 80,
     } as DOMRect)
 
     dualRange.dispatchEvent(new MouseEvent('click', {
       bubbles: true,
-      clientX: 20,
+      clientX: 10,
     }))
-    expect(ranges.at(-1)).toEqual({ from: '2024-03', through: '2024-12' })
+    expect(ranges.at(-1)).toEqual({ from: '2024-01', through: '2024-10' })
     expect(document.activeElement).toBe(
       container.querySelector('input[data-month-bound="from"]'),
     )
 
     dualRange.dispatchEvent(new MouseEvent('click', {
       bubbles: true,
-      clientX: 80,
+      clientX: 90,
     }))
-    expect(ranges.at(-1)).toEqual({ from: '2024-03', through: '2024-10' })
+    expect(ranges.at(-1)).toEqual({ from: '2024-01', through: '2024-12' })
     expect(document.activeElement).toBe(
       container.querySelector('input[data-month-bound="through"]'),
     )
