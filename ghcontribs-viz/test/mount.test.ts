@@ -3,6 +3,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import type { VisualizationIndex } from '../src/data/types.ts'
+import { VisualizationModel } from '../src/model/model.ts'
 import { mountContributionEcosystem } from '../src/mount.ts'
 import { ownerLabelText } from '../src/render/ecosystem.ts'
 import { validDetails, validIndex } from './fixtures.ts'
@@ -455,11 +456,18 @@ describe('mountContributionEcosystem', () => {
       .toContain('PR #2 A pull request')
     expect(target.querySelector('.ghc-details__item:nth-child(4) a')?.textContent)
       .toContain('Issue #1 An issue')
+    const initialRows = Array.from(target.querySelectorAll<HTMLElement>('.ghc-details__item'))
+    const reviewRow = initialRows
+      .find((item) => item.querySelector('.ghc-details__type')?.textContent === 'Review')!
     controller.setContributionTypes(['reviews'])
     expect(target.querySelectorAll('.ghc-details__item')).toHaveLength(1)
+    expect(target.querySelector('.ghc-details__item')).toBe(reviewRow)
     controller.setMonthRange({ from: '2024-02', through: '2024-02' })
     expect(target.querySelector('.ghc-details__content')?.textContent)
       .toContain('No contributions match')
+    controller.setContributionTypes(['issues', 'pull_requests', 'reviews', 'comments'])
+    controller.setMonthRange({ from: '2024-01', through: '2024-02' })
+    expect(Array.from(target.querySelectorAll('.ghc-details__item'))).toEqual(initialRows)
     expect(target.querySelector('.ghc-details')).not.toBeNull()
     controller.selectRepository(null)
     controller.selectRepository('ExampleOrg/example')
@@ -489,6 +497,25 @@ describe('mountContributionEcosystem', () => {
       'No contributions match',
     )
     expect(fetcher).toHaveBeenCalledTimes(2)
+  })
+
+  it('computes one visualization snapshot per filter render with details open', async () => {
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(Response.json(validIndex))
+      .mockResolvedValueOnce(Response.json(validDetails))
+    vi.stubGlobal('fetch', fetcher)
+    const target = document.createElement('div')
+    document.body.append(target)
+    const controller = mountContributionEcosystem(target, { dataUrl: '/index.json' })
+    await flushPromises()
+    controller.selectRepository('ExampleOrg/example')
+    await flushPromises()
+
+    const getSnapshot = vi.spyOn(VisualizationModel.prototype, 'getSnapshot')
+    controller.setMonthRange({ from: '2024-01', through: '2024-01' })
+
+    expect(getSnapshot).toHaveBeenCalledOnce()
+    getSnapshot.mockRestore()
   })
 
   it('applies repository selection requested before the index loads', async () => {

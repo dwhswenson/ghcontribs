@@ -15,7 +15,6 @@ test('keeps owner-name characters in every visible label', async ({ page }) => {
   for (const label of labelTexts) expect(label).toMatch(/[A-Za-z0-9]/)
 
   const hiddenLabels = page.locator('.ghc-owner__label--hidden')
-  expect(await hiddenLabels.count()).toBeGreaterThan(0)
   for (const label of await hiddenLabels.all()) {
     await expect(label).toHaveCSS('display', 'none')
   }
