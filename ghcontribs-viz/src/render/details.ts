@@ -78,14 +78,14 @@ function updateDetailListView(
   view: DetailListView,
   snapshot: VisualizationSnapshot,
 ): void {
-  const visible = new Set(view.index.select(snapshot.monthRange, snapshot.contributionTypes))
+  const selected = view.index.select(snapshot.monthRange, snapshot.contributionTypes)
+  const visible = new Set(selected)
   for (const entry of view.visible) {
     if (!visible.has(entry)) view.rows.get(entry)!.remove()
   }
   let nextRow: HTMLLIElement | null = null
-  for (let index = view.index.entries.length - 1; index >= 0; index -= 1) {
-    const entry = view.index.entries[index]!
-    if (!visible.has(entry)) continue
+  for (let index = selected.length - 1; index >= 0; index -= 1) {
+    const entry = selected[index]!
     let row = view.rows.get(entry)
     if (row === undefined) {
       row = createDetailRow(entry.contribution)

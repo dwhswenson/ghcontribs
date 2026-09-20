@@ -175,6 +175,8 @@ test('keeps a selected repository open and cached while filters change', async (
   await expect(page.locator('.ghc-details__content')).toContainText(
     'No contributions match the active filters',
   )
+  await expect(page.locator('.ghc-details__list')).toBeHidden()
+  await expect(page.locator('.ghc-details__list')).toHaveCSS('display', 'none')
   await expect(page.locator('.ghc-summary')).toContainText(
     'No contributions match the active filters',
   )

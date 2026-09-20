@@ -652,6 +652,10 @@
   list-style: none;
 }
 
+.ghc-details__list[hidden] {
+  display: none;
+}
+
 .ghc-details__item {
   display: grid;
   grid-template-columns: 6rem minmax(0, 1fr) auto;
