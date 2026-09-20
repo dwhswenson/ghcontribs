@@ -440,6 +440,10 @@
   white-space: nowrap;
 }
 
+.ghc-owner__name--label-hidden {
+  pointer-events: none;
+}
+
 .ghc-owner__focus {
   display: block;
   width: 100%;

@@ -31,6 +31,49 @@ test('draws owner keyboard focus only around the outer owner region', async ({ p
   await expect(owner).toHaveCSS('outline-width', '3px')
 })
 
+test('clicks compact repositories through hidden owner headers', async ({ page }) => {
+  await page.setViewportSize({ width: 64, height: 520 })
+  await page.locator('body').evaluate((body) => {
+    body.style.minWidth = '0'
+  })
+  await expect(page.locator('.ghc-owner__label--hidden').first()).toBeAttached()
+  await page.locator('.ghc-ecosystem').evaluate(async (ecosystem) => {
+    await Promise.all(
+      ecosystem.getAnimations({ subtree: true }).map((animation) => animation.finished),
+    )
+  })
+  const owner = page.locator('.ghc-owner')
+    .filter({ has: page.locator('.ghc-owner__label--hidden') })
+    .first()
+  const header = owner.locator(':scope > .ghc-owner__name')
+  const ownerButton = header.locator(':scope > .ghc-owner__focus')
+  const repository = owner.locator(':scope > .ghc-repository').first()
+
+  await expect(header).toHaveCSS('pointer-events', 'none')
+  await expect(ownerButton).toHaveAttribute('tabindex', '0')
+  await repository.scrollIntoViewIfNeeded()
+  const headerBox = await header.boundingBox()
+  const repositoryBox = await repository.boundingBox()
+  expect(headerBox).not.toBeNull()
+  expect(repositoryBox).not.toBeNull()
+  const left = Math.max(headerBox!.x, repositoryBox!.x)
+  const right = Math.min(
+    headerBox!.x + headerBox!.width,
+    repositoryBox!.x + repositoryBox!.width,
+  )
+  const top = Math.max(headerBox!.y, repositoryBox!.y)
+  const bottom = Math.min(
+    headerBox!.y + headerBox!.height,
+    repositoryBox!.y + repositoryBox!.height,
+  )
+  expect(right).toBeGreaterThan(left)
+  expect(bottom).toBeGreaterThan(top)
+
+  const repositoryKey = await repository.getAttribute('data-repository-key')
+  await page.mouse.click((left + right) / 2, (top + bottom) / 2)
+  await expect(page.locator('.ghc-details__title')).toHaveText(repositoryKey!)
+})
+
 async function openFilters(page: import('@playwright/test').Page): Promise<void> {
   const trigger = page.locator('.ghc-filter-trigger')
   if (await trigger.getAttribute('aria-expanded') !== 'true') await trigger.click()

@@ -266,10 +266,12 @@ export function renderEcosystem(
     ownerLabel.textContent = ownerLabelText(ownerNameText, ownerLayout.width)
     ownerFocus.setAttribute('aria-label', `Focus ${ownerNameText}`)
     ownerFocus.setAttribute('aria-expanded', String(isFocusTarget))
+    const labelIsVisible = ownerLabelIsVisible(ownerLayout)
     ownerLabel.classList.toggle(
       'ghc-owner__label--hidden',
-      !ownerLabelIsVisible(ownerLayout),
+      !labelIsVisible,
     )
+    ownerName.classList.toggle('ghc-owner__name--label-hidden', !labelIsVisible)
     const remainingRepositories = new Map(
       Array.from(
         owner.querySelectorAll<HTMLElement>(':scope > .ghc-repository'),
