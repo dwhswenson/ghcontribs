@@ -44,6 +44,8 @@ const OWNER_GAP = 8
 const REPOSITORY_GAP = 4
 const OWNER_INSET = 7
 const OWNER_HEADER_HEIGHT = 28
+const MINIMUM_OWNER_LABEL_WIDTH = 72
+const MINIMUM_OWNER_LABEL_HEIGHT = OWNER_INSET * 2 + OWNER_HEADER_HEIGHT * 2
 export const MINIMUM_REPOSITORY_SIZE = 4
 
 interface PartitionOptions {
@@ -171,6 +173,11 @@ function partition<T>(
   ]
 }
 
+export function ownerLabelIsVisible(ownerRect: LayoutRect): boolean {
+  return ownerRect.width >= MINIMUM_OWNER_LABEL_WIDTH &&
+    ownerRect.height >= MINIMUM_OWNER_LABEL_HEIGHT
+}
+
 function repositoryBounds(ownerRect: LayoutRect): LayoutRect {
   const maximumInset = Math.max(
     0,
@@ -178,7 +185,7 @@ function repositoryBounds(ownerRect: LayoutRect): LayoutRect {
   )
   const inner = inset(ownerRect, Math.min(OWNER_INSET, maximumInset))
   const maximumHeader = Math.max(0, inner.height - MINIMUM_REPOSITORY_SIZE)
-  const header = inner.height >= OWNER_HEADER_HEIGHT * 2
+  const header = ownerLabelIsVisible(ownerRect)
     ? Math.min(OWNER_HEADER_HEIGHT, maximumHeader)
     : 0
   return {

@@ -150,7 +150,10 @@ export function mountContributionEcosystem(
   let detailRequest = 0
   const detailsLoader = new RepositoryDetailsLoader(options.dataUrl)
 
-  const findRepository = (key: string) => model?.getSnapshot().owners
+  const findRepository = (
+    key: string,
+    snapshot = model?.getSnapshot(),
+  ) => snapshot?.owners
     .flatMap((owner) => owner.repositories)
     .find((repository) => repository.key === key)
 
@@ -161,7 +164,9 @@ export function mountContributionEcosystem(
     filterControls.update(elements.controls, snapshot)
     renderDetails(
       element,
-      selectedRepository === null ? null : findRepository(selectedRepository) ?? null,
+      selectedRepository === null
+        ? null
+        : findRepository(selectedRepository, snapshot) ?? null,
       detailState,
       snapshot,
     )

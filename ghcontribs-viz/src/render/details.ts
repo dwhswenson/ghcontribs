@@ -1,4 +1,8 @@
-import type { Contribution, ContributionType, RepositoryDetails } from '../data/types.ts'
+import type { Contribution, RepositoryDetails } from '../data/types.ts'
+import {
+  RepositoryDetailIndex,
+  type IndexedContribution,
+} from '../model/detail-index.ts'
 import type { RepositoryViewModel, VisualizationSnapshot } from '../model/model.ts'
 
 export type DetailState =
@@ -11,13 +15,6 @@ const TYPE_LABELS: Record<Contribution['contrib_type'], string> = {
   pullRequest: 'Pull request',
   pullRequestReview: 'Review',
   issueComment: 'Comment',
-}
-
-const FILTER_TYPES: Record<Contribution['contrib_type'], ContributionType> = {
-  issue: 'issues',
-  pullRequest: 'pull_requests',
-  pullRequestReview: 'reviews',
-  issueComment: 'comments',
 }
 
 function targetTitle(contribution: Contribution): string {
@@ -34,20 +31,72 @@ function targetTitle(contribution: Contribution): string {
   }
 }
 
-function visibleContributions(
+interface DetailListView {
+  readonly details: RepositoryDetails
+  readonly index: RepositoryDetailIndex
+  readonly list: HTMLOListElement
+  readonly empty: HTMLParagraphElement
+  readonly rows: Map<IndexedContribution, HTMLLIElement>
+  visible: ReadonlySet<IndexedContribution>
+}
+
+const detailListViews = new WeakMap<HTMLElement, DetailListView>()
+
+function createDetailRow(contribution: Contribution): HTMLLIElement {
+  const item = document.createElement('li')
+  item.className = 'ghc-details__item'
+  const type = document.createElement('span')
+  type.className = 'ghc-details__type'
+  type.textContent = TYPE_LABELS[contribution.contrib_type]
+  const link = document.createElement('a')
+  link.href = contribution.url
+  link.target = '_blank'
+  link.rel = 'noopener noreferrer'
+  link.textContent = targetTitle(contribution)
+  const date = document.createElement('time')
+  date.dateTime = contribution.created
+  date.textContent = new Date(contribution.created).toISOString().slice(0, 10)
+  item.append(type, link, date)
+  return item
+}
+
+function createDetailListView(
+  status: HTMLElement,
   details: RepositoryDetails,
+): DetailListView {
+  const index = new RepositoryDetailIndex(details)
+  const list = document.createElement('ol')
+  list.className = 'ghc-details__list'
+  const empty = document.createElement('p')
+  empty.textContent = 'No contributions match the active filters.'
+  const rows = new Map<IndexedContribution, HTMLLIElement>()
+  status.replaceChildren(list, empty)
+  return { details, index, list, empty, rows, visible: new Set() }
+}
+
+function updateDetailListView(
+  view: DetailListView,
   snapshot: VisualizationSnapshot,
-): Contribution[] {
-  const selected = new Set(snapshot.contributionTypes)
-  return details.contributions.filter((contribution) => {
-    const month = new Date(contribution.created).toISOString().slice(0, 7)
-    return selected.has(FILTER_TYPES[contribution.contrib_type]) &&
-      month >= snapshot.monthRange.from && month <= snapshot.monthRange.through
-  }).sort((left, right) =>
-    Date.parse(left.created) - Date.parse(right.created) ||
-    left.url.localeCompare(right.url) ||
-    left.contrib_type.localeCompare(right.contrib_type),
-  )
+): void {
+  const selected = view.index.select(snapshot.monthRange, snapshot.contributionTypes)
+  const visible = new Set(selected)
+  for (const entry of view.visible) {
+    if (!visible.has(entry)) view.rows.get(entry)!.remove()
+  }
+  let nextRow: HTMLLIElement | null = null
+  for (let index = selected.length - 1; index >= 0; index -= 1) {
+    const entry = selected[index]!
+    let row = view.rows.get(entry)
+    if (row === undefined) {
+      row = createDetailRow(entry.contribution)
+      view.rows.set(entry, row)
+    }
+    if (!view.visible.has(entry)) view.list.insertBefore(row, nextRow)
+    nextRow = row
+  }
+  view.visible = visible
+  view.list.hidden = visible.size === 0
+  view.empty.hidden = visible.size !== 0
 }
 
 export function renderDetails(
@@ -92,13 +141,16 @@ export function renderDetails(
   const summary = panel.querySelector<HTMLElement>('.ghc-details__summary')!
   summary.textContent = `${repository.counts.issues} issues · ${repository.counts.pull_requests} pull requests · ${repository.counts.reviews} reviews · ${repository.counts.comments} comments`
   const status = panel.querySelector<HTMLElement>('.ghc-details__content')!
-  status.replaceChildren()
   status.removeAttribute('role')
   panel.setAttribute('aria-busy', String(state.kind === 'loading'))
 
   if (state.kind === 'loading') {
+    detailListViews.delete(panel)
+    status.replaceChildren()
     status.textContent = 'Loading repository details…'
   } else if (state.kind === 'error') {
+    detailListViews.delete(panel)
+    status.replaceChildren()
     status.setAttribute('role', 'alert')
     const message = document.createElement('p')
     message.textContent = `Repository details could not be loaded: ${state.error instanceof Error ? state.error.message : String(state.error)}`
@@ -108,30 +160,11 @@ export function renderDetails(
     retry.textContent = 'Retry'
     status.append(message, retry)
   } else {
-    const contributions = visibleContributions(state.details, snapshot)
-    if (contributions.length === 0) {
-      status.textContent = 'No contributions match the active filters.'
-    } else {
-      const list = document.createElement('ol')
-      list.className = 'ghc-details__list'
-      for (const contribution of contributions) {
-        const item = document.createElement('li')
-        item.className = 'ghc-details__item'
-        const type = document.createElement('span')
-        type.className = 'ghc-details__type'
-        type.textContent = TYPE_LABELS[contribution.contrib_type]
-        const link = document.createElement('a')
-        link.href = contribution.url
-        link.target = '_blank'
-        link.rel = 'noopener noreferrer'
-        link.textContent = targetTitle(contribution)
-        const date = document.createElement('time')
-        date.dateTime = contribution.created
-        date.textContent = new Date(contribution.created).toISOString().slice(0, 10)
-        item.append(type, link, date)
-        list.append(item)
-      }
-      status.append(list)
+    let view = detailListViews.get(panel)
+    if (view?.details !== state.details) {
+      view = createDetailListView(status, state.details)
+      detailListViews.set(panel, view)
     }
+    updateDetailListView(view, snapshot)
   }
 }

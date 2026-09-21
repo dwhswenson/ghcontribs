@@ -4,6 +4,7 @@ import type { VisualizationIndex } from '../src/data/types.ts'
 import {
   layoutEcosystem,
   MINIMUM_REPOSITORY_SIZE,
+  ownerLabelIsVisible,
   type LayoutRect,
 } from '../src/layout/treemap.ts'
 import { VisualizationModel } from '../src/model/model.ts'
@@ -273,6 +274,20 @@ describe('layoutEcosystem', () => {
           )
         }
       }
+    }
+
+    const unlabeledOwners = layout.owners.filter(
+      (owner) => !ownerLabelIsVisible(owner) && owner.repositories.length > 0,
+    )
+    expect(unlabeledOwners.length).toBeGreaterThan(0)
+    for (const owner of unlabeledOwners) {
+      const repositoryTop = Math.min(...owner.repositories.map(({ y }) => y))
+      const repositoryBottom = Math.max(
+        ...owner.repositories.map(({ y, height }) => y + height),
+      )
+      expect(repositoryTop - owner.y).toBeCloseTo(
+        owner.y + owner.height - repositoryBottom,
+      )
     }
   })
 })

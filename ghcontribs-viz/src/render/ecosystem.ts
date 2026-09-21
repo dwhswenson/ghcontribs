@@ -1,5 +1,9 @@
 import type { ContributionCounts } from '../data/types.ts'
-import type { EcosystemLayout, LayoutRect } from '../layout/treemap.ts'
+import {
+  ownerLabelIsVisible,
+  type EcosystemLayout,
+  type LayoutRect,
+} from '../layout/treemap.ts'
 import type { VisualizationSnapshot } from '../model/model.ts'
 import type { InteractionSnapshot, InteractionTarget } from '../interaction/state.ts'
 
@@ -13,6 +17,19 @@ const COUNT_LABELS: ReadonlyArray<{
   { key: 'reviews', short: 'R', label: 'reviews' },
   { key: 'comments', short: 'C', label: 'comments' },
 ]
+
+const OWNER_LABEL_FIXED_WIDTH = 34
+const OWNER_LABEL_CHARACTER_WIDTH = 8
+
+export function ownerLabelText(ownerName: string, width: number): string {
+  const characterBudget = Math.max(
+    2,
+    Math.floor((width - OWNER_LABEL_FIXED_WIDTH) / OWNER_LABEL_CHARACTER_WIDTH),
+  )
+  return ownerName.length > characterBudget
+    ? `${ownerName.slice(0, characterBudget)}…`
+    : ownerName
+}
 
 function positionWithin(
   element: HTMLElement,
@@ -246,13 +263,15 @@ export function renderEcosystem(
     const ownerLabel = ownerFocus.querySelector<HTMLElement>(
       ':scope > .ghc-owner__label',
     )!
-    ownerLabel.textContent = ownerNameText
+    ownerLabel.textContent = ownerLabelText(ownerNameText, ownerLayout.width)
     ownerFocus.setAttribute('aria-label', `Focus ${ownerNameText}`)
     ownerFocus.setAttribute('aria-expanded', String(isFocusTarget))
+    const labelIsVisible = ownerLabelIsVisible(ownerLayout)
     ownerLabel.classList.toggle(
       'ghc-owner__label--hidden',
-      ownerLayout.width < 72 || ownerLayout.height < 58,
+      !labelIsVisible,
     )
+    ownerName.classList.toggle('ghc-owner__name--label-hidden', !labelIsVisible)
     const remainingRepositories = new Map(
       Array.from(
         owner.querySelectorAll<HTMLElement>(':scope > .ghc-repository'),
